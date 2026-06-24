@@ -35,7 +35,7 @@ import zipfile
 import socket
 import ssl
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 # ── UTF-8 safety on Windows cp1252 / PowerShell terminals ─────────────────────
 if hasattr(sys.stdout, "reconfigure"):
@@ -290,7 +290,7 @@ def _post_connection_error_to_n8n(error_detail: str) -> None:
         "status":    "error",
         "stage":     "IMAP_CONNECT",
         "message":   f"Connection failed after 3 retries: {error_detail}",
-        "timestamp": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }).encode("utf-8")
     try:
         req = urllib.request.Request(
@@ -387,7 +387,7 @@ def download_attachments():
                     print(f"Connecting to Gmail IMAP  (attempt {_att}/{_IMAP_RETRIES}) ...")
                 socket.setdefaulttimeout(_CONN_TIMEOUT)
                 _ctx = ssl.create_default_context()
-                _m = imaplib.IMAP4_SSL("imap.gmail.com", 993, ssl_context=_ctx)
+                _m = imaplib.IMAP4_SSL("imap.gmail.com", 993, ssl_context=_ctx, timeout=_CONN_TIMEOUT)
                 _m.login(GMAIL_ADDRESS, app_password)
                 _m.select('"[Gmail]/All Mail"', readonly=True)
                 if not quiet:
@@ -666,8 +666,11 @@ def download_attachments():
                 pass
             mail = None
             save_log(log_path, log_entries)
+            _reconnect_waits = [30, 60, 120]   # longer waits for real network dropouts
             for _ratt in range(1, 4):
-                time.sleep(5 * _ratt)
+                _rwait = _reconnect_waits[_ratt - 1]
+                print(f"  Waiting {_rwait}s before reconnect attempt {_ratt}/3 ...")
+                time.sleep(_rwait)
                 mail = _connect_imap(quiet=True)
                 if mail is not None:
                     print(f"  Reconnected (attempt {_ratt}). Continuing from email {i+1}.")
