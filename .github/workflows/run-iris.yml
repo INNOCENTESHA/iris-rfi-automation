@@ -75,7 +75,8 @@ jobs:
         env:
           GOOGLE_TOKEN_PATH: /home/runner/.iris/token.json
           GOOGLE_CREDS_PATH: /home/runner/.iris/credentials.json
-        run: python update_physical_progress.py
+          IRIS_BASE_DIR: /tmp/iris
+        run: python update_physical_progress.py --dry-run
 
       - name: Notify n8n on failure
         if: failure()
