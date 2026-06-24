@@ -213,8 +213,8 @@ import pdfplumber
 # ══════════════════════════════════════════════════════════════════════════════
 # CONFIGURATION
 # ══════════════════════════════════════════════════════════════════════════════
-CREDENTIALS_FILE = r"C:\AI-Projects\google_credentials.json"
-TOKEN_FILE       = r"C:\AI-Projects\google_token.json"
+CREDENTIALS_FILE = os.environ.get("GOOGLE_CREDS_PATH", r"C:\AI-Projects\google_credentials.json")
+TOKEN_FILE       = os.environ.get("GOOGLE_TOKEN_PATH", r"C:\AI-Projects\google_token.json")
 
 # ── RFI Detailed Log spreadsheet names ────────────────────────────────────────
 SPREADSHEET_655  = "65.5 IRIS RFI Detailed Log"
