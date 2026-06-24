@@ -69,6 +69,14 @@ jobs:
           MODE: ${{ github.event.inputs.mode || github.event.client_payload.mode || 'full-scan' }}
         run: python update_rfi_google_sheets.py
 
+      # STEP 3: write cumulative figures into the PHYSICAL PROGRESS sheets
+      #         (DRY-RUN: logs only. Set PHYS_PROGRESS_LIVE=1 to write for real.)
+      - name: Update physical progress (dry-run)
+        env:
+          GOOGLE_TOKEN_PATH: /home/runner/.iris/token.json
+          GOOGLE_CREDS_PATH: /home/runner/.iris/credentials.json
+        run: python update_physical_progress.py
+
       - name: Notify n8n on failure
         if: failure()
         env:
