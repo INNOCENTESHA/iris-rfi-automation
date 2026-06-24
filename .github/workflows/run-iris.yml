@@ -5,13 +5,12 @@ on:
   schedule:
     - cron: "0 14 * * *"
 
-  # n8n triggers this via POST to GitHub API:
-  # POST https://api.github.com/repos/{owner}/iris-rfi-automation/dispatches
+  # n8n triggers this via POST to GitHub repository_dispatch API
   # Body: {"event_type": "run-iris", "client_payload": {"mode": "full-scan"}}
   repository_dispatch:
     types: [run-iris]
 
-  # Manual trigger from GitHub UI (for testing)
+  # Manual trigger (for testing)
   workflow_dispatch:
     inputs:
       mode:
@@ -35,9 +34,12 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          pip install -r requirements.txt
+          # unrar binary is needed for RAR attachment extraction (rarfile)
+          sudo apt-get update && sudo apt-get install -y unrar || true
 
-      # Google OAuth token — stored as GitHub secret (base64-encoded JSON)
+      # Google Sheets OAuth — restore token + client secret from base64 secrets
       - name: Restore Google credentials
         env:
           GOOGLE_TOKEN_B64: ${{ secrets.GOOGLE_TOKEN_B64 }}
@@ -47,20 +49,23 @@ jobs:
           echo "$GOOGLE_TOKEN_B64" | base64 -d > ~/.iris/token.json
           echo "$GOOGLE_CREDS_B64" | base64 -d > ~/.iris/credentials.json
 
-      # Gmail OAuth token for IMAP/downloading attachments
-      - name: Restore Gmail token
+      # STEP 1 (was missing): download RFI attachments from Gmail via IMAP
+      - name: Download RFI attachments
         env:
-          GMAIL_TOKEN_B64: ${{ secrets.GMAIL_TOKEN_B64 }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          RFI_ZIP_DIR: /tmp/rfi_zips
         run: |
-          echo "$GMAIL_TOKEN_B64" | base64 -d > ~/.iris/gmail_token.json
+          mkdir -p /tmp/rfi_zips
+          python download_rfi_attachments.py
 
-      - name: Run IRIS RFI script
+      # STEP 2: parse the downloaded zips and update Google Sheets
+      - name: Update Google Sheets from RFI zips
         env:
-          N8N_CALLBACK_URL: ${{ secrets.N8N_CALLBACK_URL }}
           GOOGLE_TOKEN_PATH: /home/runner/.iris/token.json
           GOOGLE_CREDS_PATH: /home/runner/.iris/credentials.json
-          GMAIL_TOKEN_PATH: /home/runner/.iris/gmail_token.json
           RFI_ZIP_DIR: /tmp/rfi_zips
+          N8N_CALLBACK_URL: ${{ secrets.N8N_CALLBACK_URL }}
           MODE: ${{ github.event.inputs.mode || github.event.client_payload.mode || 'full-scan' }}
         run: python update_rfi_google_sheets.py
 
