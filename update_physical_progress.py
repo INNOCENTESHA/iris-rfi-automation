@@ -291,7 +291,12 @@ def build_pp_plan(rows, code_col, target_col, pivot, today):
 
 def run():
     today = _dt.date.today()
-    service = get_service()
+    try:
+        service = get_service()
+    except Exception as e:
+        print(f"  SKIP: Google auth unavailable ({e}).")
+        print("  Fix: the GOOGLE_TOKEN_B64 secret must be a base64 of a VALID token.json.")
+        return
     mode = "LIVE WRITE" if LIVE else "DRY-RUN (no changes)"
     print(f"\n=== update_physical_progress | {today} | {mode} ===")
 
