@@ -1,0 +1,74 @@
+name: IRIS RFI Daily Run
+
+on:
+  # Daily at 17:00 EAT (14:00 UTC)
+  schedule:
+    - cron: "0 14 * * *"
+
+  # n8n triggers this via POST to GitHub API:
+  # POST https://api.github.com/repos/{owner}/iris-rfi-automation/dispatches
+  # Body: {"event_type": "run-iris", "client_payload": {"mode": "full-scan"}}
+  repository_dispatch:
+    types: [run-iris]
+
+  # Manual trigger from GitHub UI (for testing)
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Run mode"
+        default: "full-scan"
+        required: false
+
+jobs:
+  run-iris:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # Google OAuth token — stored as GitHub secret (base64-encoded JSON)
+      - name: Restore Google credentials
+        env:
+          GOOGLE_TOKEN_B64: ${{ secrets.GOOGLE_TOKEN_B64 }}
+          GOOGLE_CREDS_B64: ${{ secrets.GOOGLE_CREDS_B64 }}
+        run: |
+          mkdir -p ~/.iris
+          echo "$GOOGLE_TOKEN_B64" | base64 -d > ~/.iris/token.json
+          echo "$GOOGLE_CREDS_B64" | base64 -d > ~/.iris/credentials.json
+
+      # Gmail OAuth token for IMAP/downloading attachments
+      - name: Restore Gmail token
+        env:
+          GMAIL_TOKEN_B64: ${{ secrets.GMAIL_TOKEN_B64 }}
+        run: |
+          echo "$GMAIL_TOKEN_B64" | base64 -d > ~/.iris/gmail_token.json
+
+      - name: Run IRIS RFI script
+        env:
+          N8N_CALLBACK_URL: ${{ secrets.N8N_CALLBACK_URL }}
+          GOOGLE_TOKEN_PATH: /home/runner/.iris/token.json
+          GOOGLE_CREDS_PATH: /home/runner/.iris/credentials.json
+          GMAIL_TOKEN_PATH: /home/runner/.iris/gmail_token.json
+          RFI_ZIP_DIR: /tmp/rfi_zips
+          MODE: ${{ github.event.inputs.mode || github.event.client_payload.mode || 'full-scan' }}
+        run: python update_rfi_google_sheets.py
+
+      - name: Notify n8n on failure
+        if: failure()
+        env:
+          N8N_CALLBACK_URL: ${{ secrets.N8N_CALLBACK_URL }}
+        run: |
+          curl -s -X POST "$N8N_CALLBACK_URL" \
+            -H "Content-Type: application/json" \
+            -d '{"status":"error","source":"github-actions","message":"IRIS run failed — check Actions log"}'
