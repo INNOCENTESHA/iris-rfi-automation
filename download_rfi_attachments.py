@@ -46,7 +46,7 @@ if hasattr(sys.stderr, "reconfigure"):
 # =============================================================================
 # CONFIGURATION — fill in your details
 # =============================================================================
-GMAIL_ADDRESS      = "innoptesha@gmail.com"
+GMAIL_ADDRESS      = os.environ.get("GMAIL_USER", "innoptesha@gmail.com")
 GMAIL_APP_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD", "ogue yxve arzt zngl")   # override via env in CI   # 16-char App Password (spaces ok)
 OUTPUT_FOLDER      = os.environ.get("RFI_ZIP_DIR", r"D:\HIGHWAY ENGINEERING CAREER\RFI-ZIPs")
 # =============================================================================
@@ -198,25 +198,18 @@ _ensure_rarfile()
 
 def build_unique_output_path(folder, filename, email_date):
     """
-    Return a unique (output_path, safe_name) for filename inside folder.
-    Appends a date-stamp or counter suffix if the name already exists.
+    Return (output_path, safe_name) for filename inside folder.
+
+    Duplicate-avoidance: if a file with the same sanitised name already
+    exists on disk, return (None, safe_name) so the caller SKIPS it.
+    We never append a _dd-mm-yyyy date stamp or _N counter suffix, because
+    those create duplicate files (e.g. "...RFI's 24.06.2026_24-06-2026_1.zip").
     """
     safe_name   = sanitize_filename(filename)
     output_path = os.path.join(folder, safe_name)
 
     if os.path.exists(output_path):
-        base, ext   = os.path.splitext(safe_name)
-        output_path = os.path.join(folder, f"{base}_{email_date}{ext}")
-
-    if os.path.exists(output_path):
-        base, ext = os.path.splitext(os.path.basename(output_path))
-        counter   = 1
-        while True:
-            candidate = os.path.join(folder, f"{base}_{counter}{ext}")
-            if not os.path.exists(candidate):
-                output_path = candidate
-                break
-            counter += 1
+        return None, safe_name      # already on disk -> skip, do not duplicate
 
     return output_path, safe_name
 
@@ -605,6 +598,13 @@ def download_attachments():
 
                     output_path, safe_name = build_unique_output_path(
                         OUTPUT_FOLDER, filename, email_date)
+
+                    # Duplicate name already on disk -> skip (never date-suffix)
+                    if output_path is None:
+                        print(f"    SKIP (already on disk): {safe_name}")
+                        skipped_dup += 1
+                        downloaded_names.add(safe_name)
+                        continue
 
                     with open(output_path, "wb") as f:
                         f.write(payload)
