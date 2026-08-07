@@ -18,8 +18,22 @@ Rules:
 SETUP (one-time):
 1. Go to https://myaccount.google.com/apppasswords
 2. Generate a 16-character App Password for "Mail"
-3. Paste it below in GMAIL_APP_PASSWORD
-4. Run: python C:\\AI-Projects\\download_rfi_attachments.py
+3. Store it as the GMAIL_APP_PASSWORD environment variable / repository secret
+4. Set GMAIL_USER and RFI_ZIP_DIR, then run: python download_rfi_attachments.py
+
+ENVIRONMENT VARIABLES
+    GMAIL_USER          required  mailbox to read
+    GMAIL_APP_PASSWORD  required  16-character Google App Password
+    RFI_ZIP_DIR         required  folder attachments are written to
+    RFI_LOG_PATH        optional  dedup log (default <RFI_ZIP_DIR>/_download_log.json)
+    RFI_VERIFY_FILES    optional  "0" trusts the log without re-checking the disk
+    N8N_CALLBACK_URL    optional  webhook notified on unrecoverable IMAP failure
+    IRIS_FULL_SCAN      optional  "1" ignores the SINCE date optimisation
+
+EXIT CODES
+    0  success
+    1  the run finished with errors
+    2  configuration error
 """
 
 import imaplib
@@ -44,14 +58,51 @@ if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 # =============================================================================
-# CONFIGURATION — fill in your details
+# CONFIGURATION - read from the environment only. Never hard-code credentials.
 # =============================================================================
-GMAIL_ADDRESS      = os.environ.get("GMAIL_USER", "innoptesha@gmail.com")
-GMAIL_APP_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD", "ogue yxve arzt zngl")   # override via env in CI   # 16-char App Password (spaces ok)
-OUTPUT_FOLDER      = os.environ.get("RFI_ZIP_DIR", r"D:\HIGHWAY ENGINEERING CAREER\RFI-ZIPs")
+GMAIL_ADDRESS = os.environ.get("GMAIL_USER", "").strip()
+GMAIL_APP_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD", "").strip()
+OUTPUT_FOLDER = os.environ.get("RFI_ZIP_DIR", "").strip()
+LOG_PATH = os.environ.get("RFI_LOG_PATH", "").strip()
+N8N_CALLBACK_URL = os.environ.get("N8N_CALLBACK_URL", "").strip()
+VERIFY_FILES_ON_DISK = os.environ.get("RFI_VERIFY_FILES", "1").strip().lower() not in ("0", "false", "no")
 # =============================================================================
 
-# Extensions to skip — leave empty to download EVERYTHING
+class ConfigError(RuntimeError):
+    """Raised when required configuration is missing or invalid."""
+
+
+def load_config() -> None:
+    """Validate configuration up front so failures are loud, not silent."""
+    global LOG_PATH
+
+    missing = [
+        name
+        for name, value in (
+            ("GMAIL_USER", GMAIL_ADDRESS),
+            ("GMAIL_APP_PASSWORD", GMAIL_APP_PASSWORD),
+            ("RFI_ZIP_DIR", OUTPUT_FOLDER),
+        )
+        if not value
+    ]
+    if missing:
+        raise ConfigError(
+            "Missing required environment variable(s): " + ", ".join(missing)
+            + ". See the module docstring for the full list."
+        )
+
+    if len(GMAIL_APP_PASSWORD.replace(" ", "")) != 16:
+        raise ConfigError(
+            "GMAIL_APP_PASSWORD does not look like a Google App Password "
+            "(expected 16 characters, ignoring spaces). Generate one at "
+            "https://myaccount.google.com/apppasswords"
+        )
+
+    if not LOG_PATH:
+        LOG_PATH = os.path.join(OUTPUT_FOLDER, "_download_log.json")
+
+
+# Extensions to skip - leave empty to download EVERYTHING
 SKIP_EXTENSIONS = set()
 
 # Full-scan mode: search all emails, ignore SINCE date optimisation
@@ -174,22 +225,12 @@ def inventory_rar(rar_path: str) -> list[str]:
     return []
 
 
-def _ensure_rarfile():
-    """Auto-install rarfile if needed (for RAR inventory listing only)."""
-    try:
-        import rarfile  # noqa
-    except ImportError:
-        import subprocess as _sp
-        try:
-            _sp.check_call(
-                [sys.executable, "-m", "pip", "install", "rarfile", "-q"],
-                stdout=_sp.DEVNULL, stderr=_sp.DEVNULL,
-            )
-        except Exception:
-            pass
-
-
-_ensure_rarfile()
+try:
+    import rarfile  # noqa: F401
+    _RARFILE_AVAILABLE = True
+except ImportError:  # declared in requirements.txt; only RAR inventory is lost
+    _RARFILE_AVAILABLE = False
+    print("WARNING: 'rarfile' is not installed - RAR archives will not be inventoried.")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -277,7 +318,10 @@ def verify_existing_downloads(log_entries, output_folder):
 
 def _post_connection_error_to_n8n(error_detail: str) -> None:
     import urllib.request
-    webhook = "https://innocentesha.app.n8n.cloud/webhook/rfi-status"
+    if not N8N_CALLBACK_URL:
+        print(" (No N8N_CALLBACK_URL configured - skipping error callback.)")
+        return
+    webhook = N8N_CALLBACK_URL
     payload = json.dumps({
         "script":    "download_rfi_attachments",
         "status":    "error",
@@ -303,13 +347,14 @@ def _post_connection_error_to_n8n(error_detail: str) -> None:
 # Main downloader
 # ─────────────────────────────────────────────────────────────────────────────
 
-def download_attachments():
+def download_attachments() -> bool:
+    """Run one download pass. Returns True on success, False otherwise."""
+    load_config()
     os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+    os.makedirs(os.path.dirname(os.path.abspath(LOG_PATH)) or ".", exist_ok=True)
 
     app_password = GMAIL_APP_PASSWORD.replace(" ", "")
-    if len(app_password) < 10:
-        print("ERROR: Please set your Gmail App Password in the script.")
-        return
+    # Credentials were already validated by load_config().
 
     SEP  = "=" * 60
     SEP2 = "-" * 60
@@ -325,13 +370,17 @@ def download_attachments():
     print()
 
     # ── Load log + pre-run verification ───────────────────────────────────────
-    log_path    = os.path.join(OUTPUT_FOLDER, "_download_log.json")
+    log_path = LOG_PATH
     log_entries = load_existing_log(log_path)
 
     print(SEP2)
     print("PRE-RUN VERIFICATION")
     print(SEP2)
-    missing_hashes, missing_names = verify_existing_downloads(log_entries, OUTPUT_FOLDER)
+    if VERIFY_FILES_ON_DISK:
+        missing_hashes, missing_names = verify_existing_downloads(log_entries, OUTPUT_FOLDER)
+    else:
+        print(" Disk verification disabled (RFI_VERIFY_FILES=0) - trusting the log.")
+        missing_hashes, missing_names = set(), set()
     print()
 
     # ── Build skip-sets  (exclude missing files so they get re-downloaded) ────
@@ -413,7 +462,7 @@ def download_attachments():
     mail = _connect_imap()
     if mail is None:
         print(f"\nERROR: Could not connect to Gmail IMAP after {_IMAP_RETRIES} attempts.")
-        return
+        return False
 
     # ── SINCE optimisation  (disabled in full-scan mode) ──────────────────────
     _auto_full    = len(missing_hashes) > 0 or len(missing_names) > 0
@@ -714,6 +763,18 @@ def download_attachments():
     print()
 
 
+    if errors:
+        print(f"NOTE: {errors} error(s) occurred - this run is marked as FAILED.")
+    return errors == 0
+
+
 if __name__ == "__main__":
-    download_attachments()
-    sys.exit(0)
+    try:
+        _ok = download_attachments()
+    except ConfigError as exc:
+        print(f"CONFIGURATION ERROR: {exc}")
+        sys.exit(2)
+    except KeyboardInterrupt:
+        print("Interrupted by user.")
+        sys.exit(130)
+    sys.exit(0 if _ok else 1)
