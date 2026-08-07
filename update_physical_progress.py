@@ -39,7 +39,7 @@ ACTIVITY MAPPING  (IRIS RFI canonical → Physical Progress row label)
 
 RUN
 ---
-  python C:\\AI-Projects\\update_physical_progress.py
+  python update_physical_progress.py
 
   Optional flags:
     --dry-run        Show what would be written, but don't write anything
@@ -75,7 +75,7 @@ except ImportError:
 # CONFIGURATION
 # ══════════════════════════════════════════════════════════════════════════════
 
-BASE_DIR   = Path(os.environ.get("IRIS_BASE_DIR", r"C:\AI-Projects"))
+BASE_DIR = Path(os.environ.get("IRIS_BASE_DIR") or (Path.home() / ".iris"))
 try:
     BASE_DIR.mkdir(parents=True, exist_ok=True)
 except Exception:
@@ -191,9 +191,28 @@ DATE_DAY_163_22 = 19
 def auth() -> object:
     """Return authenticated Google Sheets service."""
     if not TOKEN_FILE.exists():
-        sys.exit(f"ERROR: Token file not found: {TOKEN_FILE}")
-    with open(TOKEN_FILE) as f:
-        token_data = json.load(f)
+        sys.exit(
+            f"CONFIGURATION ERROR: Google token file not found: {TOKEN_FILE}. "
+            "Set GOOGLE_TOKEN_PATH, or restore it from the GOOGLE_TOKEN_B64 secret."
+        )
+
+    try:
+        with open(TOKEN_FILE, encoding="utf-8") as f:
+            token_data = json.load(f)
+    except json.JSONDecodeError as exc:
+        sys.exit(
+            f"CONFIGURATION ERROR: {TOKEN_FILE} is not valid JSON ({exc}). "
+            "It is usually empty because the GOOGLE_TOKEN_B64 secret is missing or "
+            "was not produced with 'base64 -w0 token.json'."
+        )
+    except OSError as exc:
+        sys.exit(f"CONFIGURATION ERROR: cannot read {TOKEN_FILE}: {exc}")
+
+    if not token_data.get("refresh_token"):
+        sys.exit(
+            f"CONFIGURATION ERROR: {TOKEN_FILE} contains no refresh_token. "
+            "Re-authorise locally, then regenerate the GOOGLE_TOKEN_B64 secret."
+        )
     creds = Credentials(
         token=token_data.get("token"),
         refresh_token=token_data.get("refresh_token"),
