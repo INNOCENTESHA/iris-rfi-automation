@@ -1,6 +1,19 @@
+# IRIS RFI automation - runtime dependencies
+# Pinned with lower bounds; CI installs with `pip install -r requirements.txt`.
+# NOTE: every third-party import used anywhere in this repo must be listed here.
+# Scripts must NOT pip-install at runtime.
+
+# --- Google Sheets / Drive ---
 gspread>=6.0.0
 google-auth>=2.0.0
 google-auth-oauthlib>=1.0.0
 google-auth-httplib2>=0.1.0
+google-api-python-client>=2.100.0
+
+# --- Document parsing ---
 pdfplumber>=0.10.0
+python-docx>=1.1.0
+rarfile>=4.1
+
+# --- HTTP ---
 requests>=2.31.0
