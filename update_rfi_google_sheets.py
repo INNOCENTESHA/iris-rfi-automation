@@ -1,7 +1,7 @@
 """
 IRIS RFI → Google Sheets Uploader & Daily Updater  (v5 — April 2026)
 ======================================================================
-Reads ALL documents from  D:\\HIGHWAY ENGINEERING CAREER\\RFI-ZIPs\\  —
+Reads ALL documents found in the folder named by RFI_ZIP_DIR —
 both inside ZIP archives and standalone files — extracts RFI metadata,
 derives canonical Activity Names from Work Descriptions, handles multi-
 segment chainage ranges, then INSERTS new records ABOVE THE FOOTER ROW
@@ -52,12 +52,14 @@ APPEND LOGIC (no data loss):
   the table.  Only records whose RFI No. is not already present are
   inserted.  S/No. continues from the current maximum in each table.
 
-FIRST-TIME SETUP (Windows, run once):
-  pip install gspread google-auth google-auth-oauthlib
-              google-api-python-client pdfplumber python-docx
+CONFIGURATION (environment variables — nothing is hard-coded):
+    RFI_ZIP_DIR         required  folder holding the RFI archives / documents
+    GOOGLE_CREDS_PATH   required  path to the OAuth client-secret JSON
+    GOOGLE_TOKEN_PATH   required  path to the authorised OAuth token JSON
+    N8N_CALLBACK_URL    optional  webhook notified about run status
 
-Run:
-  python C:\\AI-Projects\\update_rfi_google_sheets.py
+Install dependencies with:  pip install -r requirements.txt
+Run with:                   python update_rfi_google_sheets.py
 """
 
 import os, re, io, sys, json, zipfile, datetime, time, shutil, subprocess, tempfile
@@ -65,7 +67,11 @@ from pathlib import Path
 from collections import defaultdict
 
 # ── Output / Input paths ──────────────────────────────────────────────────────
-ZIP_FOLDER = os.environ.get("RFI_ZIP_DIR", r"D:\HIGHWAY ENGINEERING CAREER\RFI-ZIPs")
+ZIP_FOLDER = os.environ.get("RFI_ZIP_DIR", "").strip()
+if not ZIP_FOLDER:
+    raise SystemExit(
+        "CONFIGURATION ERROR: set RFI_ZIP_DIR to the folder holding the RFI archives."
+    )
 
 # ── Valid RFI filename patterns ────────────────────────────────────────────────
 # Only PDFs/docs matching these formats are logged to Google Sheets.
@@ -118,7 +124,7 @@ def _find_rar_tool() -> str | None:
     for c in candidates:
         if os.path.exists(c):
             return c
-    for name in ("unrar", "rar", "7z"):
+    for name in ("unrar", "unar", "rar", "7z", "bsdtar"):
         found = _sh.which(name)
         if found:
             return found
@@ -184,24 +190,33 @@ def _open_rar(rar_path: str):
           "install WinRAR (https://www.rarlab.com) and add to PATH.")
     return []
 
-# ── Auto-install required packages ────────────────────────────────────────────
-def _ensure(pkg, import_name=None):
-    import importlib, subprocess
-    try:
-        importlib.import_module(import_name or pkg)
-    except ImportError:
-        print(f"Installing {pkg} …")
-        subprocess.check_call([sys.executable, "-m", "pip", "install", pkg, "-q"])
+# ── Dependency check ─────────────────────────────────────────────────────────
+# Dependencies are declared in requirements.txt. Installing packages at runtime
+# hides real problems and is unsafe in CI, so we only report what is missing.
+import importlib
 
-for _p, _i in [
-    ("gspread",                  "gspread"),
-    ("google-auth",              "google.oauth2"),
-    ("google-auth-oauthlib",     "google_auth_oauthlib"),
-    ("google-api-python-client", "googleapiclient"),
-    ("pdfplumber",               "pdfplumber"),
-    ("python-docx",              "docx"),
-]:
-    _ensure(_p, _i)
+_REQUIRED_MODULES = {
+    "gspread": "gspread",
+    "google.oauth2": "google-auth",
+    "google_auth_oauthlib": "google-auth-oauthlib",
+    "googleapiclient": "google-api-python-client",
+    "pdfplumber": "pdfplumber",
+    "docx": "python-docx",
+}
+
+_missing_modules = []
+for _module, _package in _REQUIRED_MODULES.items():
+    try:
+        importlib.import_module(_module)
+    except ImportError:
+        _missing_modules.append(_package)
+
+if _missing_modules:
+    raise SystemExit(
+        "CONFIGURATION ERROR: missing dependencies: "
+        + ", ".join(sorted(_missing_modules))
+        + ". Install them with: pip install -r requirements.txt"
+    )
 
 import gspread
 from google.oauth2.credentials import Credentials
@@ -213,8 +228,13 @@ import pdfplumber
 # ══════════════════════════════════════════════════════════════════════════════
 # CONFIGURATION
 # ══════════════════════════════════════════════════════════════════════════════
-CREDENTIALS_FILE = os.environ.get("GOOGLE_CREDS_PATH", r"C:\AI-Projects\google_credentials.json")
-TOKEN_FILE       = os.environ.get("GOOGLE_TOKEN_PATH", r"C:\AI-Projects\google_token.json")
+CREDENTIALS_FILE = os.environ.get("GOOGLE_CREDS_PATH", "").strip()
+TOKEN_FILE = os.environ.get("GOOGLE_TOKEN_PATH", "").strip()
+
+for _label, _value in (("GOOGLE_CREDS_PATH", CREDENTIALS_FILE),
+                       ("GOOGLE_TOKEN_PATH", TOKEN_FILE)):
+    if not _value:
+        raise SystemExit(f"CONFIGURATION ERROR: {_label} is not set.")
 
 # ── RFI Detailed Log spreadsheet names ────────────────────────────────────────
 SPREADSHEET_655  = "65.5 IRIS RFI Detailed Log"
@@ -1281,9 +1301,9 @@ def _process_doc(data: bytes, inner: str, archive_name: str,
         if not text.strip():
             return
 
-        src = (rf"D:\HIGHWAY ENGINEERING CAREER\RFI-ZIPs\{archive_name}\{base}"
+        src = (os.path.join(ZIP_FOLDER, archive_name, base)
                if archive_name
-               else rf"D:\HIGHWAY ENGINEERING CAREER\RFI-ZIPs\{base}")
+               else os.path.join(ZIP_FOLDER, base))
 
         rec = extract_fields(text, archive_name or base, base,
                              project, island_hint, date_hint, src, rfi_type)
@@ -3477,7 +3497,7 @@ def apply_road_lookup(records: list, road_lookup: dict) -> None:
 def road_name_from_attachment(attachment_path: str) -> str:
     """
     Given an attachment_path like
-        D:\\HIGHWAY ENGINEERING CAREER\\RFI-ZIPs\\some.zip\\IRIS-Q-RFI-P-25-0019.pdf
+        <RFI_ZIP_DIR>/some.zip/IRIS-Q-RFI-P-25-0019.pdf
     open the ZIP (using ZIP_FOLDER as the local root) and extract the road name
     from the embedded PDF/DOCX.  Returns "" on any failure.
     """
