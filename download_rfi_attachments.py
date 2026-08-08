@@ -150,6 +150,31 @@ def sanitize_filename(name):
     return re.sub(r'[\\/:*?"<>|]', '_', name)
 
 
+def md5_digest(data: bytes) -> str:
+    """Hash a payload for de-duplication only - never used as a security check."""
+    try:
+        return hashlib.md5(data, usedforsecurity=False).hexdigest()
+    except TypeError:          # Python < 3.9 has no usedforsecurity kwarg
+        return hashlib.md5(data).hexdigest()
+
+
+def _msg_sequence(msg_id) -> int:
+    """IMAP sequence numbers are numeric: sort them as ints, not as text."""
+    raw = msg_id.decode() if isinstance(msg_id, bytes) else str(msg_id)
+    return int(raw) if raw.isdigit() else 0
+
+
+def _redact(text: str) -> str:
+    """Strip credentials out of anything printed or sent to an external service."""
+    if not text:
+        return ""
+    cleaned = str(text)
+    for value in (GMAIL_APP_PASSWORD, GMAIL_APP_PASSWORD.replace(" ", ""), GMAIL_ADDRESS):
+        if value:
+            cleaned = cleaned.replace(value, "***REDACTED***")
+    return cleaned
+
+
 def load_existing_log(log_path):
     """Load the JSON download log (returns [] if missing or corrupt)."""
     if os.path.exists(log_path):
@@ -167,6 +192,12 @@ def save_log(log_path, log_entries):
         json.dump(log_entries, f, indent=2, ensure_ascii=False)
 
 
+# IMAP needs English month abbreviations regardless of system locale,
+# which strftime("%b") does not guarantee.
+_IMAP_MONTH_ABBR = ("Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+
 def get_since_date(log_entries, lookback_days: int = 7) -> str | None:
     """
     Return an IMAP SINCE date string based on the most recent download
@@ -180,7 +211,7 @@ def get_since_date(log_entries, lookback_days: int = 7) -> str | None:
     try:
         dt = datetime.fromisoformat(latest[:19])
         since_dt = dt - timedelta(days=lookback_days)
-        return since_dt.strftime("%d-%b-%Y")
+        return f"{since_dt.day:02d}-{_IMAP_MONTH_ABBR[since_dt.month - 1]}-{since_dt.year}"
     except Exception:
         return None
 
@@ -326,7 +357,7 @@ def _post_connection_error_to_n8n(error_detail: str) -> None:
         "script":    "download_rfi_attachments",
         "status":    "error",
         "stage":     "IMAP_CONNECT",
-        "message":   f"Connection failed after 3 retries: {error_detail}",
+        "message":   f"Connection failed after 3 retries: {_redact(error_detail)}",
         "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }).encode("utf-8")
     try:
@@ -414,6 +445,7 @@ def download_attachments() -> bool:
     _IMAP_RETRIES = 3
     _IMAP_BACKOFF = [5, 10, 20]
     _CONN_TIMEOUT = 30
+    _HEADER_BATCH = 200   # messages per header FETCH round trip
     _FETCH_TIMEOUT = 180   # longer timeout for large email bodies
     mail          = None
 
@@ -430,7 +462,13 @@ def download_attachments() -> bool:
                 socket.setdefaulttimeout(_CONN_TIMEOUT)
                 _ctx = ssl.create_default_context()
                 _m = imaplib.IMAP4_SSL("imap.gmail.com", 993, ssl_context=_ctx, timeout=_CONN_TIMEOUT)
-                _m.login(GMAIL_ADDRESS, app_password)
+                try:
+                    _m.login(GMAIL_ADDRESS, app_password)
+                except imaplib.IMAP4.error as _auth_err:
+                    # Only a login rejection is fatal - never burn retries on it.
+                    print(f"LOGIN FAILED: {_redact(str(_auth_err))}")
+                    print("Use an App Password, not your regular Gmail password.")
+                    return None
                 _m.select('"[Gmail]/All Mail"', readonly=True)
                 if not quiet:
                     print("Connected successfully!")
@@ -438,9 +476,20 @@ def download_attachments() -> bool:
                 return _m
 
             except imaplib.IMAP4.error as e:
-                print(f"LOGIN FAILED: {e}")
-                print("Use an App Password, not your regular Gmail password.")
-                return None
+                # Genuine auth failures already returned above, so anything
+                # arriving here is a server-side hiccup worth retrying.
+                print(f"  IMAP server error (attempt {_att}): {_redact(str(e))}")
+                if _m:
+                    try:
+                        _m.logout()
+                    except Exception:
+                        pass
+                if _att < _IMAP_RETRIES:
+                    _wait = _IMAP_BACKOFF[_att - 1]
+                    print(f"  Retrying in {_wait}s ...")
+                    time.sleep(_wait)
+                else:
+                    _post_connection_error_to_n8n(str(e))
 
             except (ConnectionResetError, ConnectionRefusedError,
                     ConnectionAbortedError, OSError, socket.error,
@@ -523,40 +572,65 @@ def download_attachments() -> bool:
     downloaded = skipped_dup = skipped_ext = errors = 0
 
     # ── Phase 1: fetch headers ONLY to pre-filter ─────────────────────────────
-    sorted_ids = sorted(all_msg_ids)
+    sorted_ids = sorted(all_msg_ids, key=_msg_sequence)
     to_process = []   # (msg_id, msg_id_str, subject, from_addr, date_str)
 
     print(f"Phase 1 — header pre-scan ({len(sorted_ids)} emails) ...")
     header_errors = 0
-    for i, msg_id in enumerate(sorted_ids, 1):
+    # Skip already-processed emails up front so the batches stay dense.
+    pending_ids = [
+        mid for mid in sorted_ids
+        if (mid.decode() if isinstance(mid, bytes) else str(mid)) not in skip_emails
+    ]
+
+    # Headers are fetched in batches - one IMAP round trip per _HEADER_BATCH
+    # messages instead of one round trip per message.
+    scanned = 0
+    for _start in range(0, len(pending_ids), _HEADER_BATCH):
+        chunk = pending_ids[_start:_start + _HEADER_BATCH]
+        id_set = b",".join(
+            (mid if isinstance(mid, bytes) else str(mid).encode()) for mid in chunk
+        )
+
         try:
-            msg_id_str = msg_id.decode() if isinstance(msg_id, bytes) else str(msg_id)
-            if msg_id_str in skip_emails:
+            status, hdata = mail.fetch(id_set, "(BODY.PEEK[HEADER])")
+        except Exception as e:
+            header_errors += len(chunk)
+            print(f"\n  Header batch error: {e}")
+            continue
+
+        if status != "OK" or not hdata:
+            header_errors += len(chunk)
+            continue
+
+        for item in hdata:
+            # Each match arrives as (b'<seq> (BODY[HEADER] {n}', b'<raw headers>').
+            if not isinstance(item, tuple) or len(item) < 2 or not item[1]:
                 continue
+            try:
+                prefix = item[0].decode("utf-8", errors="replace") if isinstance(item[0], bytes) else str(item[0])
+                seq = re.match(r"\s*(\d+)\s", prefix)
+                if not seq:
+                    header_errors += 1
+                    continue
+                msg_id_str = seq.group(1)
+                msg_id     = msg_id_str.encode()
 
-            if (i % 50) == 0 or i == len(sorted_ids):
-                print(f"  Header scan: {i}/{len(sorted_ids)} "
-                      f"({len(to_process)} matched so far) ...", end="\r", flush=True)
+                hdr_msg   = email.message_from_bytes(item[1])
+                subject   = decode_header_value(hdr_msg.get("Subject", ""))
+                from_addr = decode_header_value(hdr_msg.get("From",    ""))
+                date_str  = hdr_msg.get("Date", "")
 
-            status, hdata = mail.fetch(msg_id, "(BODY.PEEK[HEADER])")
-            if status != "OK" or not hdata or not hdata[0]:
-                continue
+                # Only process emails from our two targeted senders
+                if is_from_targeted_sender(from_addr):
+                    to_process.append((msg_id, msg_id_str, subject, from_addr, date_str))
 
-            raw_hdr = hdata[0][1] if isinstance(hdata[0], tuple) else None
-            if not raw_hdr:
-                continue
+            except Exception:
+                header_errors += 1
 
-            hdr_msg   = email.message_from_bytes(raw_hdr)
-            subject   = decode_header_value(hdr_msg.get("Subject", ""))
-            from_addr = decode_header_value(hdr_msg.get("From",    ""))
-            date_str  = hdr_msg.get("Date", "")
-
-            # Only process emails from our two targeted senders
-            if is_from_targeted_sender(from_addr):
-                to_process.append((msg_id, msg_id_str, subject, from_addr, date_str))
-
-        except Exception:
-            header_errors += 1
+        scanned += len(chunk)
+        print(f"  Header scan: {scanned}/{len(pending_ids)} "
+              f"({len(to_process)} matched so far) ...", end="\r", flush=True)
 
     print()
     print(f"Phase 1 complete — {len(to_process)} emails from targeted senders "
@@ -632,7 +706,7 @@ def download_attachments() -> bool:
                         print(f"    WARNING: Empty payload for {filename}")
                         continue
 
-                    file_hash = hashlib.md5(payload).hexdigest()
+                    file_hash = md5_digest(payload)
                     safe_name = sanitize_filename(filename)
 
                     # Dedup: skip if hash OR name already saved
