@@ -9,8 +9,7 @@
 # REQUIRED repository secrets (Settings > Secrets and variables > Actions):
 #   GMAIL_USER          Gmail address that receives the RFI emails
 #   GMAIL_APP_PASSWORD  16-character Google App Password (never the account password)
-#   GOOGLE_CREDS_B64    base64 of the OAuth client-secret JSON   (base64 -w0 creds.json)
-#   GOOGLE_TOKEN_B64    base64 of the authorised OAuth token JSON (base64 -w0 token.json)
+#   GOOGLE_SERVICE_ACCOUNT_B64  base64 of a service-account JSON key    (base64 -w0 key.json)
 #
 # OPTIONAL repository secrets:
 #   N8N_CALLBACK_URL    webhook notified when a run fails
@@ -60,8 +59,7 @@ env:
   RFI_LOG_PATH: ${{ github.workspace }}/.iris/state/_download_log.json
   # Attachments are deleted with the runner, so dedup must rely on the log alone.
   RFI_VERIFY_FILES: "0"
-  GOOGLE_CREDS_PATH: ${{ github.workspace }}/.iris/credentials.json
-  GOOGLE_TOKEN_PATH: ${{ github.workspace }}/.iris/token.json
+  GOOGLE_SERVICE_ACCOUNT_PATH: ${{ github.workspace }}/.iris/service-account.json
   LOG_DIR: ${{ github.workspace }}/.iris/logs
 
 jobs:
@@ -86,11 +84,10 @@ jobs:
         env:
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
-          GOOGLE_CREDS_B64: ${{ secrets.GOOGLE_CREDS_B64 }}
-          GOOGLE_TOKEN_B64: ${{ secrets.GOOGLE_TOKEN_B64 }}
+          GOOGLE_SERVICE_ACCOUNT_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_B64 }}
         run: |
           missing=()
-          for name in GMAIL_USER GMAIL_APP_PASSWORD GOOGLE_CREDS_B64 GOOGLE_TOKEN_B64; do
+          for name in GMAIL_USER GMAIL_APP_PASSWORD GOOGLE_SERVICE_ACCOUNT_B64; do
             if [ -z "${!name}" ]; then missing+=("$name"); fi
           done
 
@@ -134,10 +131,9 @@ jobs:
           restore-keys: |
             iris-download-state-
 
-      - name: Restore and validate Google credentials
+      - name: Restore and validate Google service account
         env:
-          GOOGLE_CREDS_B64: ${{ secrets.GOOGLE_CREDS_B64 }}
-          GOOGLE_TOKEN_B64: ${{ secrets.GOOGLE_TOKEN_B64 }}
+          GOOGLE_SERVICE_ACCOUNT_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_B64 }}
         run: |
           decode() {
             local value="$1" dest="$2" label="$3"
@@ -152,9 +148,8 @@ jobs:
             chmod 600 "$dest"
           }
 
-          decode "$GOOGLE_CREDS_B64" "$GOOGLE_CREDS_PATH" "GOOGLE_CREDS_B64"
-          decode "$GOOGLE_TOKEN_B64" "$GOOGLE_TOKEN_PATH" "GOOGLE_TOKEN_B64"
-          echo "Google credentials restored and validated."
+          decode "$GOOGLE_SERVICE_ACCOUNT_B64" "$GOOGLE_SERVICE_ACCOUNT_PATH" "GOOGLE_SERVICE_ACCOUNT_B64"
+          echo "Google service account credentials restored and validated."
 
       # -- Step 1 ---------------------------------------------------------------
       - name: Step 1/3 - Download RFI attachments from Gmail
