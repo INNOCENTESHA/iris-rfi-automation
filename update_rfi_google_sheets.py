@@ -220,6 +220,7 @@ if _missing_modules:
 
 import gspread
 from google.oauth2.credentials import Credentials
+from google.oauth2 import service_account
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 import pdfplumber
@@ -230,11 +231,18 @@ import pdfplumber
 # ══════════════════════════════════════════════════════════════════════════════
 CREDENTIALS_FILE = os.environ.get("GOOGLE_CREDS_PATH", "").strip()
 TOKEN_FILE = os.environ.get("GOOGLE_TOKEN_PATH", "").strip()
+SERVICE_ACCOUNT_FILE = os.environ.get("GOOGLE_SERVICE_ACCOUNT_PATH", "").strip()
 
-for _label, _value in (("GOOGLE_CREDS_PATH", CREDENTIALS_FILE),
-                       ("GOOGLE_TOKEN_PATH", TOKEN_FILE)):
-    if not _value:
-        raise SystemExit(f"CONFIGURATION ERROR: {_label} is not set.")
+# Either a service account (preferred for unattended/cloud runs -- it never
+# expires) or the OAuth client + token pair (interactive, local Windows runs).
+if not SERVICE_ACCOUNT_FILE:
+    for _label, _value in (("GOOGLE_CREDS_PATH", CREDENTIALS_FILE),
+                           ("GOOGLE_TOKEN_PATH", TOKEN_FILE)):
+        if not _value:
+            raise SystemExit(
+                f"CONFIGURATION ERROR: {_label} is not set (or set "
+                "GOOGLE_SERVICE_ACCOUNT_PATH to use a service account)."
+            )
 
 # ── RFI Detailed Log spreadsheet names ────────────────────────────────────────
 SPREADSHEET_655  = "65.5 IRIS RFI Detailed Log"
@@ -1950,6 +1958,17 @@ def get_google_creds():
     (e.g. spreadsheets.readonly from a previous run) and forces a clean
     re-authorisation so that write operations succeed.
     """
+    # Service account short-circuit -- preferred for unattended/cloud runs
+    # (no browser, no token to ever expire). Falls through to the existing
+    # OAuth flow below when GOOGLE_SERVICE_ACCOUNT_PATH is not set.
+    if SERVICE_ACCOUNT_FILE:
+        if not os.path.exists(SERVICE_ACCOUNT_FILE):
+            print(f"\n❌  Missing service account file: {SERVICE_ACCOUNT_FILE}")
+            sys.exit(1)
+        print(f"  Using service account credentials ({SERVICE_ACCOUNT_FILE})")
+        return service_account.Credentials.from_service_account_file(
+            SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+
     creds = None
     if os.path.exists(TOKEN_FILE):
         creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
