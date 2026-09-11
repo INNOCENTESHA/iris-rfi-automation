@@ -64,6 +64,7 @@ try:
     from google.oauth2.credentials import Credentials
     from google.auth.transport.requests import Request
     from googleapiclient.discovery import build
+    from google.oauth2 import service_account
     HAS_GOOGLE = True
 except ImportError:
     HAS_GOOGLE = False
@@ -82,6 +83,7 @@ except Exception:
     pass
 TOKEN_FILE = Path(os.environ.get("GOOGLE_TOKEN_PATH", str(BASE_DIR / "google_token.json")))
 CREDS_FILE = Path(os.environ.get("GOOGLE_CREDS_PATH", str(BASE_DIR / "google_credentials.json")))
+SERVICE_ACCOUNT_FILE = Path(os.environ["GOOGLE_SERVICE_ACCOUNT_PATH"]) if os.environ.get("GOOGLE_SERVICE_ACCOUNT_PATH") else None
 
 # Physical Progress sheet IDs
 PP_ID = {
@@ -190,6 +192,17 @@ DATE_DAY_163_22 = 19
 
 def auth() -> object:
     """Return authenticated Google Sheets service."""
+    # Service account short-circuit -- preferred for unattended/cloud runs
+    # (no browser, no token to ever expire). Falls through to the existing
+    # OAuth flow below when GOOGLE_SERVICE_ACCOUNT_PATH is not set.
+    if SERVICE_ACCOUNT_FILE:
+        if not SERVICE_ACCOUNT_FILE.exists():
+            sys.exit(f"CONFIGURATION ERROR: Service account file not found: {SERVICE_ACCOUNT_FILE}")
+        creds = service_account.Credentials.from_service_account_file(
+            str(SERVICE_ACCOUNT_FILE),
+            scopes=["https://www.googleapis.com/auth/spreadsheets"])
+        return build("sheets", "v4", credentials=creds)
+
     if not TOKEN_FILE.exists():
         sys.exit(
             f"CONFIGURATION ERROR: Google token file not found: {TOKEN_FILE}. "
