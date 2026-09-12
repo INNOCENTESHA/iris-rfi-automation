@@ -57,8 +57,6 @@ env:
   IRIS_BASE_DIR: ${{ github.workspace }}/.iris
   RFI_ZIP_DIR: ${{ github.workspace }}/.iris/rfi_zips
   RFI_LOG_PATH: ${{ github.workspace }}/.iris/state/_download_log.json
-  # Attachments are deleted with the runner, so dedup must rely on the log alone.
-  RFI_VERIFY_FILES: "0"
   GOOGLE_SERVICE_ACCOUNT_PATH: ${{ github.workspace }}/.iris/service-account.json
   LOG_DIR: ${{ github.workspace }}/.iris/logs
 
@@ -126,7 +124,9 @@ jobs:
       - name: Restore download state
         uses: actions/cache@v5
         with:
-          path: ${{ github.workspace }}/.iris/state
+          path: |
+          ${{ github.workspace }}/.iris/state
+          ${{ github.workspace }}/.iris/rfi_zips
           key: iris-download-state-${{ github.run_id }}
           restore-keys: |
             iris-download-state-
