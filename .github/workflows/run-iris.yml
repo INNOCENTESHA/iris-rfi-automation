@@ -125,8 +125,8 @@ jobs:
         uses: actions/cache@v5
         with:
           path: |
-          ${{ github.workspace }}/.iris/state
-          ${{ github.workspace }}/.iris/rfi_zips
+            ${{ github.workspace }}/.iris/state
+            ${{ github.workspace }}/.iris/rfi_zips
           key: iris-download-state-${{ github.run_id }}
           restore-keys: |
             iris-download-state-
