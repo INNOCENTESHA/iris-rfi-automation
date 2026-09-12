@@ -715,9 +715,18 @@ def download_attachments() -> bool:
                         skipped_dup += 1
                         continue
                     if safe_name in downloaded_names:
-                        print(f"    SKIP (dup name): {safe_name}")
-                        skipped_dup += 1
-                        continue
+                        # Same name already saved, but this is DIFFERENT
+                        # content (hash check above already let it through).
+                        # Senders sometimes reuse a ZIP filename across two
+                        # different days' emails (a copy-paste habit); saving
+                        # under the reused name would silently discard real,
+                        # distinct RFIs. Disambiguate instead of dropping it.
+                        base, ext = os.path.splitext(safe_name)
+                        disambiguated = f"{base}_{file_hash[:8]}{ext}"
+                        print(f"    NAME COLLISION (different content): "
+                              f"{safe_name} -> saving as {disambiguated}")
+                        filename = disambiguated
+                        safe_name = disambiguated
 
                     output_path, safe_name = build_unique_output_path(
                         OUTPUT_FOLDER, filename, email_date)
