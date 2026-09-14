@@ -169,6 +169,12 @@ jobs:
           echo
           echo "Total size:"
           du -sh "$RFI_ZIP_DIR"
+          echo
+          echo "Inside each ZIP (name only, never extracted):"
+          for f in "$RFI_ZIP_DIR"/*.zip; do
+            echo "--- $(basename "$f") ---"
+            python -c "import zipfile,sys; [print(' ', n) for n in zipfile.ZipFile(sys.argv[1]).namelist()]" "$f"
+          done | tee "$LOG_DIR/01c-zip-contents.log"
 
       # -- Step 2 ---------------------------------------------------------------
       - name: Step 2/3 - Update the RFI Detailed Log spreadsheets
