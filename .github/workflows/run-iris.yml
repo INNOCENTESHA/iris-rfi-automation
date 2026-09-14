@@ -162,6 +162,14 @@ jobs:
           set -o pipefail
           python download_rfi_attachments.py 2>&1 | tee "$LOG_DIR/01-download.log"
 
+      - name: List downloaded files (debug)
+        run: |
+          echo "Contents of $RFI_ZIP_DIR:"
+          ls -la "$RFI_ZIP_DIR" | tee "$LOG_DIR/01b-listing.log"
+          echo
+          echo "Total size:"
+          du -sh "$RFI_ZIP_DIR"
+
       # -- Step 2 ---------------------------------------------------------------
       - name: Step 2/3 - Update the RFI Detailed Log spreadsheets
         env:
