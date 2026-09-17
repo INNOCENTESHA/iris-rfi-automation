@@ -22,10 +22,9 @@ name: IRIS RFI Daily Run
 
 on:
   schedule:
-    # 17:00 Tanzania time (EAT, UTC+3)
-    - cron: "0 17 * * *"
-      timezone: "Africa/Dar_es_Salaam"
-
+    # 14:00 UTC = 17:00 EAT (Tanzania is UTC+3, no DST). schedule cron is always UTC.
+    - cron: "0 14 * * *"
+      
   # n8n triggers this via POST to the GitHub repository_dispatch API:
   #   {"event_type": "run-iris", "client_payload": {"mode": "full-scan"}}
   repository_dispatch:
