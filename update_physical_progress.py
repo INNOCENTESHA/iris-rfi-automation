@@ -3,7 +3,7 @@ IRIS Physical Progress Updater  (v4 — April 2026)
 ==================================================
 Reads executed lengths from the IRIS RFI Detailed Log Google Sheets
 and writes activity-level physical progress values into both
-Physical Progress Google Sheets.
+configured PHYSICAL PROGRESS tabs.
 
 WHAT IT DOES
 ------------
@@ -85,17 +85,7 @@ TOKEN_FILE = Path(os.environ.get("GOOGLE_TOKEN_PATH", str(BASE_DIR / "google_tok
 CREDS_FILE = Path(os.environ.get("GOOGLE_CREDS_PATH", str(BASE_DIR / "google_credentials.json")))
 SERVICE_ACCOUNT_FILE = Path(os.environ["GOOGLE_SERVICE_ACCOUNT_PATH"]) if os.environ.get("GOOGLE_SERVICE_ACCOUNT_PATH") else None
 
-# Physical Progress sheet IDs
-PP_ID = {
-    "65.5":   "16RE08Ivv2nSltqxVk1X9G8cBYcZP82kIGhzGAwRtZ7s",
-    "163.22": "1YbDCzePl76CqtO9dLl2YZjIZtVmJKSgVkmU6LKqXKUc",
-}
-
-# IRIS RFI Detailed Log sheet IDs
-RFI_ID = {
-    "65.5":   "1WV58zo-jYgqOTBGOtMAjjlHC3WKdQ83s-XdRFlxZLLU",
-    "163.22": "1IjN4W79VEZrAjevG5zZVKyJPuCdGbm_xAbcttTNjfOA",
-}
+from project_sheets import PP_ID, RFI_ID, PP_SHEET_NAME, physical_progress_tab
 
 # RFI_SHEET_NAMES: preferred tab names to try FIRST inside each IRIS RFI Detailed Log.
 # If none are found the script auto-discovers all tabs and reads any that contain
@@ -130,9 +120,6 @@ RFI_SHEET_NAMES = {
         "All RFIs",
     ],
 }
-
-# Physical Progress sheet name (tab name inside each Physical Progress file)
-PP_SHEET_NAME = "PHYSICAL PROGRESS"
 
 # Statuses to count as executed
 APPROVED_STATUSES = {"APPROVED", "APPROVED WITH COMMENTS", "CLOSED", "OPENED"}
@@ -485,7 +472,7 @@ def read_rfi_data(service, project: str) -> dict:
       1. Try the preferred sheet name list (RFI_SHEET_NAMES).
       2. If still 0 records, auto-discover ALL tabs and read any that look
          like RFI data tables (contain Road Code + Activity Name columns).
-      3. Also try the combined spreadsheet (rfi_spreadsheet_id.txt).
+      Only the configured project workbook is read; cached combined logs are ignored.
 
     Returns combined dict with keys of length 3 AND length 2:
       (road_code, island, pp_activity) → km
@@ -518,30 +505,13 @@ def read_rfi_data(service, project: str) -> dict:
 
     # ── Pass 2: auto-discover any remaining tabs ─────────────────────────────
     for sheet_name in all_tabs:
-        if sheet_name in tabs_read:
+        if sheet_name == PP_SHEET_NAME or sheet_name in tabs_read:
             continue
         recs = _read_sheet_records(service, ssid, sheet_name, project)
         if recs:
             print(f"    ✓ {len(recs):4d} records (auto) from '{sheet_name}'")
             raw_records.extend(recs)
             tabs_read.add(sheet_name)
-
-    # ── Pass 3: try the combined RFI spreadsheet ─────────────────────────────
-    combined_id_file = BASE_DIR / "rfi_spreadsheet_id.txt"
-    if len(raw_records) == 0 and combined_id_file.exists():
-        combined_ssid = combined_id_file.read_text().strip()
-        if combined_ssid and combined_ssid != ssid:
-            print(f"    Trying combined RFI spreadsheet …")
-            try:
-                meta2 = service.spreadsheets().get(spreadsheetId=combined_ssid).execute()
-                for s in meta2.get("sheets", []):
-                    tname = s["properties"]["title"]
-                    recs = _read_sheet_records(service, combined_ssid, tname, project)
-                    if recs:
-                        print(f"    ✓ {len(recs):4d} records (combined) from '{tname}'")
-                        raw_records.extend(recs)
-            except Exception as e:
-                print(f"    Warning on combined sheet: {e}")
 
     print(f"    Total raw records: {len(raw_records)}")
 
@@ -667,15 +637,7 @@ def parse_pp_sheet(service, project: str) -> dict:
         print(f"    ERROR: {e}")
         return {}
 
-    # Find the Physical Progress sheet (tab)
-    pp_tab = None
-    for name in sheet_names:
-        if "physical progress" in name.lower():
-            pp_tab = name
-            break
-    if pp_tab is None:
-        pp_tab = sheet_names[0]
-        print(f"    WARNING: 'Physical Progress' tab not found, using '{pp_tab}'")
+    pp_tab = physical_progress_tab(sheet_names)
 
     # Read all data
     result = service.spreadsheets().values().get(
@@ -1422,7 +1384,6 @@ def main():
         all_ids = {
             "RFI 65.5":          RFI_ID["65.5"],
             "RFI 163.22":        RFI_ID["163.22"],
-            "RFI Combined":      (BASE_DIR / "rfi_spreadsheet_id.txt").read_text().strip(),
             "PhysProgress 65.5": PP_ID["65.5"],
             "PhysProgress 163":  PP_ID["163.22"],
         }
@@ -1446,9 +1407,7 @@ def main():
             print(f"\n  === {proj} KM  (sheet id: {ssid[:24]}…) ===")
             try:
                 meta = svc.spreadsheets().get(spreadsheetId=ssid).execute()
-                pp_tab = next((s["properties"]["title"] for s in meta["sheets"]
-                               if "physical progress" in s["properties"]["title"].lower()),
-                              meta["sheets"][0]["properties"]["title"])
+                pp_tab = physical_progress_tab([s["properties"]["title"] for s in meta["sheets"]])
                 result = svc.spreadsheets().values().get(
                     spreadsheetId=ssid,
                     range=f"'{pp_tab}'!A:BZ",
