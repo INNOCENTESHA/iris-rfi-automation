@@ -249,8 +249,10 @@ SPREADSHEET_655  = "65.5 IRIS RFI Detailed Log"
 SPREADSHEET_163  = "163.22 IRIS RFI Detailed Log"
 
 # ── Physical Progress spreadsheet IDs (READ-ONLY — for road name lookup) ──────
-PHYS_PROGRESS_ID_655 = "16RE08Ivv2nSltqxVk1X9G8cBYcZP82kIGhzGAwRtZ7s"
-PHYS_PROGRESS_ID_163 = "1YbDCzePl76CqtO9dLl2YZjIZtVmJKSgVkmU6LKqXKUc"
+from project_sheets import PP_ID, PP_SHEET_NAME, RFI_ID_BY_NAME, physical_progress_tab
+
+PHYS_PROGRESS_ID_655 = PP_ID["65.5"]
+PHYS_PROGRESS_ID_163 = PP_ID["163.22"]
 
 # ── Canonical Road Code → Road Name lookup ────────────────────────────────────
 # Built from all IRIS RFI records; chainage stripped.
@@ -989,9 +991,7 @@ def load_road_data(service) -> dict:
             meta = service.spreadsheets().get(spreadsheetId=ssid).execute()
             sheet_names = [s["properties"]["title"] for s in meta.get("sheets", [])]
 
-            priority = [s for s in sheet_names
-                        if "physical progress" in s.lower() or "road" in s.lower()]
-            candidates = priority + [s for s in sheet_names if s not in priority]
+            candidates = [physical_progress_tab(sheet_names)]
 
             loaded = 0
             for sheet_name in candidates:
@@ -2148,6 +2148,9 @@ def get_all_named_tables(service, ssid: str) -> dict:
         props       = sheet.get("properties", {})
         sheet_id    = props.get("sheetId")
         sheet_title = props.get("title", "")
+        # Progress tables share this workbook but are outside RFI maintenance.
+        if sheet_title == PP_SHEET_NAME:
+            continue
 
         for tbl in sheet.get("tables", []):
             name = tbl.get("name", "").strip()
@@ -3267,6 +3270,10 @@ def audit_and_fix_table(service, ssid: str, tinfo: dict, tbl_name: str,
 # ══════════════════════════════════════════════════════════════════════════════
 
 def get_spreadsheet_id(drive, name: str, id_file: str) -> str:
+    # Explicit project IDs take precedence over stale caches and duplicate names.
+    if name in RFI_ID_BY_NAME:
+        return RFI_ID_BY_NAME[name]
+
     if os.path.exists(id_file):
         with open(id_file) as f:
             ssid = f.read().strip()
