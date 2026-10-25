@@ -39,6 +39,14 @@ on:
           - full-scan
           - incremental
         default: full-scan
+      physical_progress_project:
+        description: "Physical Progress project (start with 65.5)"
+        type: choice
+        options:
+          - "65.5"
+          - "163.22"
+          - both
+        default: "65.5"
       physical_progress_live:
         description: "Write Physical Progress for real (leave unchecked for a dry run)"
         type: boolean
@@ -54,6 +62,8 @@ concurrency:
 
 env:
   PYTHONUNBUFFERED: "1"
+  # Set this repository variable only after migrating the 163.22 progress tab.
+  IRIS_PP_ID_163_22: ${{ vars.IRIS_PP_ID_163_22 }}
   IRIS_BASE_DIR: ${{ github.workspace }}/.iris
   RFI_ZIP_DIR: ${{ github.workspace }}/.iris/rfi_zips
   RFI_LOG_PATH: ${{ github.workspace }}/.iris/state/_download_log.json
@@ -189,15 +199,16 @@ jobs:
       # Defaults to a dry run. Tick 'physical_progress_live' on a manual run to write.
       - name: Step 3/3 - Update Physical Progress
         env:
+          PHYS_PROGRESS_PROJECT: ${{ github.event.inputs.physical_progress_project || '65.5' }}
           PHYS_PROGRESS_LIVE: ${{ github.event.inputs.physical_progress_live == 'true' && '1' || '0' }}
         run: |
           set -o pipefail
           if [ "$PHYS_PROGRESS_LIVE" = "1" ]; then
             echo "LIVE mode - the Physical Progress sheets will be written."
-            python update_physical_progress.py 2>&1 | tee "$LOG_DIR/03-physical-progress.log"
+            python update_physical_progress.py --project "$PHYS_PROGRESS_PROJECT" 2>&1 | tee "$LOG_DIR/03-physical-progress.log"
           else
             echo "DRY-RUN mode - no writes will be made."
-            python update_physical_progress.py --dry-run 2>&1 | tee "$LOG_DIR/03-physical-progress.log"
+            python update_physical_progress.py --project "$PHYS_PROGRESS_PROJECT" --dry-run 2>&1 | tee "$LOG_DIR/03-physical-progress.log"
           fi
 
       # -- Always keep the evidence --------------------------------------------
@@ -220,6 +231,7 @@ jobs:
             echo "| --- | --- |"
             echo "| Trigger | ${{ github.event_name }} |"
             echo "| Mode | ${{ github.event.inputs.mode || github.event.client_payload.mode || 'full-scan' }} |"
+            echo "| Progress project | ${{ github.event.inputs.physical_progress_project || '65.5' }} |"
             echo "| Physical Progress | ${{ github.event.inputs.physical_progress_live == 'true' && 'LIVE' || 'dry run' }} |"
             echo "| Result | ${{ job.status }} |"
             echo ""
