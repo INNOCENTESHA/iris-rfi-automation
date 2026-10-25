@@ -52,6 +52,8 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 
+from project_sheets import RFI_ID
+
 # ── UTF-8 safety ───────────────────────────────────────────────────────────────
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -613,7 +615,7 @@ def insert_missing_rfis(gc: gspread.Client,
 
     # Open spreadsheet
     try:
-        ss = _api(gc.open, spreadsheet_name)
+        ss = _api(gc.open_by_key, RFI_ID[km_key])
     except gspread.exceptions.SpreadsheetNotFound:
         print(f"    ❌  Spreadsheet '{spreadsheet_name}' not found in Google Drive.")
         return 0

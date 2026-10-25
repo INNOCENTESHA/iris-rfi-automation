@@ -68,6 +68,8 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 
+from project_sheets import RFI_ID_BY_NAME
+
 # ══════════════════════════════════════════════════════════════════════════════
 # SECTION 1 — PDF PARSING
 # ══════════════════════════════════════════════════════════════════════════════
@@ -230,6 +232,9 @@ def _api_retry(fn, **kwargs):
 
 
 def _find_spreadsheet_id(drive, name: str) -> str | None:
+    if name in RFI_ID_BY_NAME:
+        return RFI_ID_BY_NAME[name]
+
     resp = _api_retry(
         drive.files().list,
         q=f"name='{name}' and mimeType='application/vnd.google-apps.spreadsheet'",

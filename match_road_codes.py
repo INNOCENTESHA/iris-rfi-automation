@@ -40,6 +40,8 @@ from pathlib   import Path
 from datetime  import datetime
 from collections import defaultdict
 
+from project_sheets import PP_ID, RFI_ID, physical_progress_tab
+
 # ── Google auth (same token as other scripts) ─────────────────────────────────
 try:
     from google.oauth2.credentials  import Credentials
@@ -53,15 +55,7 @@ BASE_DIR   = Path(r"C:\AI-Projects")
 TOKEN_FILE = BASE_DIR / "google_token.json"
 
 # ── Physical Progress sheet IDs ───────────────────────────────────────────────
-PP_ID = {
-    "65.5":   "16RE08Ivv2nSltqxVk1X9G8cBYcZP82kIGhzGAwRtZ7s",
-    "163.22": "1YbDCzePl76CqtO9dLl2YZjIZtVmJKSgVkmU6LKqXKUc",
-}
 # ── IRIS RFI sheet IDs ────────────────────────────────────────────────────────
-RFI_ID = {
-    "65.5":   "1WV58zo-jYgqOTBGOtMAjjlHC3WKdQ83s-XdRFlxZLLU",
-    "163.22": "1IjN4W79VEZrAjevG5zZVKyJPuCdGbm_xAbcttTNjfOA",
-}
 
 OUTPUT_JSON   = BASE_DIR / "road_code_mapping.json"
 OUTPUT_REPORT = BASE_DIR / "road_code_mapping_report.txt"
@@ -330,9 +324,7 @@ def read_from_physical_progress(service, ssid: str, project: str) -> list[dict]:
     try:
         meta = service.spreadsheets().get(spreadsheetId=ssid).execute()
         tabs = [s["properties"]["title"] for s in meta["sheets"]]
-        pp_tab = next(
-            (t for t in tabs if "physical progress" in t.lower()), tabs[0]
-        )
+        pp_tab = physical_progress_tab(tabs)
         result = service.spreadsheets().values().get(
             spreadsheetId=ssid,
             range=f"'{pp_tab}'!A:F",
