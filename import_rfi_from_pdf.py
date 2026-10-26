@@ -52,8 +52,6 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 
-from project_sheets import RFI_ID
-
 # ── UTF-8 safety ───────────────────────────────────────────────────────────────
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -70,6 +68,8 @@ PDF_655  = os.path.join(ZIP_FOLDER, "65.5 KM UNGUJA RFI with status.pdf")
 PDF_163  = os.path.join(ZIP_FOLDER, "163.22 KM UNGUJA RFI with status.pdf")
 
 # Target spreadsheet names (must match exactly what's in Google Drive)
+from project_sheets import RFI_ID
+
 SPREADSHEET_655  = "65.5 IRIS RFI Detailed Log"
 SPREADSHEET_163  = "163.22 IRIS RFI Detailed Log"
 
