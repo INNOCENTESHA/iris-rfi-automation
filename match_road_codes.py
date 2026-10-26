@@ -40,8 +40,6 @@ from pathlib   import Path
 from datetime  import datetime
 from collections import defaultdict
 
-from project_sheets import PP_ID, RFI_ID, physical_progress_tab
-
 # ── Google auth (same token as other scripts) ─────────────────────────────────
 try:
     from google.oauth2.credentials  import Credentials
@@ -54,8 +52,7 @@ except ImportError:
 BASE_DIR   = Path(r"C:\AI-Projects")
 TOKEN_FILE = BASE_DIR / "google_token.json"
 
-# ── Physical Progress sheet IDs ───────────────────────────────────────────────
-# ── IRIS RFI sheet IDs ────────────────────────────────────────────────────────
+from project_sheets import PP_ID, RFI_ID, physical_progress_tab
 
 OUTPUT_JSON   = BASE_DIR / "road_code_mapping.json"
 OUTPUT_REPORT = BASE_DIR / "road_code_mapping_report.txt"
