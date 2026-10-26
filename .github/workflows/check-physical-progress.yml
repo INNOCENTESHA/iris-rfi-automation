@@ -1,0 +1,75 @@
+name: Check Physical Progress (dry run)
+
+on:
+  workflow_dispatch:
+    inputs:
+      project:
+        description: "Project to validate"
+        type: choice
+        options:
+          - "65.5"
+          - "163.22"
+        default: "65.5"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: iris-rfi-daily
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"
+  IRIS_BASE_DIR: ${{ runner.temp }}/iris-progress-check
+  GOOGLE_SERVICE_ACCOUNT_PATH: ${{ runner.temp }}/iris-progress-check/service-account.json
+  IRIS_PP_ID_163_22: ${{ vars.IRIS_PP_ID_163_22 }}
+
+jobs:
+  check-progress:
+    name: Validate physical progress without spreadsheet writes
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Check Python and routing tests
+        run: |
+          python -m compileall -q .
+          python -m unittest discover -s tests -v
+      - name: Restore Google credentials
+        env:
+          GOOGLE_SERVICE_ACCOUNT_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_B64 }}
+        run: |
+          python - <<'PY'
+          import base64, json, os
+          from pathlib import Path
+          value = os.environ.get("GOOGLE_SERVICE_ACCOUNT_B64", "")
+          if not value:
+              raise SystemExit("GOOGLE_SERVICE_ACCOUNT_B64 is missing")
+          payload = base64.b64decode(value, validate=True)
+          json.loads(payload)
+          path = Path(os.environ["GOOGLE_SERVICE_ACCOUNT_PATH"])
+          path.parent.mkdir(parents=True, exist_ok=True)
+          path.write_bytes(payload)
+          path.chmod(0o600)
+          PY
+      - name: Validate configured workbook and calculate proposed progress
+        env:
+          PROJECT: ${{ inputs.project }}
+        run: |
+          set -o pipefail
+          python update_physical_progress.py --project "$PROJECT" --dry-run 2>&1 | tee "$IRIS_BASE_DIR/progress-check.log"
+      - name: Upload validation log
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: physical-progress-check-${{ github.run_number }}
+          path: ${{ runner.temp }}/iris-progress-check/progress-check.log
+          if-no-files-found: ignore
+          retention-days: 14
