@@ -20,8 +20,8 @@ concurrency:
 
 env:
   PYTHONUNBUFFERED: "1"
-  IRIS_BASE_DIR: ${{ runner.temp }}/iris-progress-check
-  GOOGLE_SERVICE_ACCOUNT_PATH: ${{ runner.temp }}/iris-progress-check/service-account.json
+  IRIS_BASE_DIR: ${{ github.workspace }}/.iris-progress-check
+  GOOGLE_SERVICE_ACCOUNT_PATH: ${{ github.workspace }}/.iris-progress-check/service-account.json
   IRIS_PP_ID_163_22: ${{ vars.IRIS_PP_ID_163_22 }}
 
 jobs:
@@ -70,6 +70,6 @@ jobs:
         uses: actions/upload-artifact@v5
         with:
           name: physical-progress-check-${{ github.run_number }}
-          path: ${{ runner.temp }}/iris-progress-check/progress-check.log
+          path: ${{ github.workspace }}/.iris-progress-check/progress-check.log
           if-no-files-found: ignore
           retention-days: 14
