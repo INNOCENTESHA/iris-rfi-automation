@@ -38,6 +38,8 @@ STATUS_PDFS = [
 # ─── Google config (same as update_rfi_google_sheets.py) ─────────────────────
 CREDENTIALS_FILE = r"C:\AI-Projects\google_credentials.json"
 TOKEN_FILE       = r"C:\AI-Projects\google_token.json"
+from project_sheets import RFI_ID_BY_NAME
+
 SPREADSHEET_655  = "65.5 IRIS RFI Detailed Log"
 SPREADSHEET_163  = "163.22 IRIS RFI Detailed Log"
 
@@ -67,8 +69,6 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
-
-from project_sheets import RFI_ID_BY_NAME
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SECTION 1 — PDF PARSING
