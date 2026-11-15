@@ -1,0 +1,95 @@
+name: IRIS Road Weather Advisory
+
+# Replaces the two n8n scheduleTrigger nodes.
+# GitHub cron is UTC; Africa/Dar_es_Salaam is UTC+3 with no DST.
+#   02:30 UTC -> 05:30 EAT  (Pemba)
+#   02:45 UTC -> 05:45 EAT  (Unguja)
+# Note: scheduled runs on GitHub can start a few minutes late under load.
+
+on:
+  schedule:
+    - cron: '30 2 * * *'     # Pemba
+    - cron: '45 2 * * *'     # Unguja
+  workflow_dispatch:
+    inputs:
+      island:
+        description: Island to run
+        required: true
+        default: both
+        type: choice
+        options: [both, unguja, pemba]
+      dry_run:
+        description: Render only, do not send email
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: road-weather-${{ github.event.schedule || github.event.inputs.island }}
+  cancel-in-progress: false
+
+jobs:
+  advisory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install google-api-python-client google-auth google-auth-oauthlib
+
+      - name: Restore Google credentials
+        env:
+          GOOGLE_TOKEN_B64: ${{ secrets.GOOGLE_TOKEN_B64 }}
+        run: |
+          if [ -z "$GOOGLE_TOKEN_B64" ]; then
+            echo "::error::GOOGLE_TOKEN_B64 secret is not set"; exit 1
+          fi
+          mkdir -p "$HOME/.iris"
+          echo "$GOOGLE_TOKEN_B64" | base64 -d > "$HOME/.iris/token.json"
+          python -c "import json,sys; json.load(open('$HOME/.iris/token.json')); print('token.json parsed OK')"
+
+      - name: Resolve island from trigger
+        id: pick
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            if [ "${{ github.event.schedule }}" = "30 2 * * *" ]; then
+              echo "island=pemba" >> "$GITHUB_OUTPUT"
+            else
+              echo "island=unguja" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "island=${{ github.event.inputs.island }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run advisory
+        env:
+          IRIS_BASE_DIR: ${{ github.workspace }}
+          GOOGLE_TOKEN_PATH: /home/runner/.iris/token.json
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_MODEL || 'claude-sonnet-5-5' }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          WEATHER_RECIPIENTS_JSON: ${{ secrets.WEATHER_RECIPIENTS_JSON }}
+          WEATHER_PROVIDER: ${{ vars.WEATHER_PROVIDER || 'openmeteo' }}
+          PYTHONUTF8: '1'
+        run: |
+          python iris_road_weather.py \
+            --island "${{ steps.pick.outputs.island }}" \
+            ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && '--dry-run' || '' }}
+
+      - name: Upload rendered advisory
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: advisory-${{ steps.pick.outputs.island }}-${{ github.run_id }}
+          path: logs/*.html
+          if-no-files-found: warn
+          retention-days: 30
