@@ -1,0 +1,319 @@
+[
+  {
+    "name": "CE-100 Feeder Central Ubago - Jumbi (AL1)",
+    "lat": -6.1844,
+    "lon": 39.2991
+  },
+  {
+    "name": "CE-100 Feeder Central Ubago - Jumbi (AL2)",
+    "lat": -6.1888,
+    "lon": 39.294
+  },
+  {
+    "name": "WB-101 Feeder West \"B\" Langoni - Kwabiasha (AL 01)",
+    "lat": -6.2,
+    "lon": 39.26
+  },
+  {
+    "name": "WB-101 Feeder West \"B\" Langoni - Kwabiasha (AL 02)",
+    "lat": -6.2,
+    "lon": 39.26
+  },
+  {
+    "name": "WB-101 Feeder West \"B\" Langoni - Kwabiasha (AL 03)",
+    "lat": -6.2,
+    "lon": 39.26
+  },
+  {
+    "name": "CE-102 Feeder Central Kianga - Istiqama (AL 01)",
+    "lat": -6.2097,
+    "lon": 39.3163
+  },
+  {
+    "name": "CE-102 Feeder Central Kianga - Istiqama (AL 02)",
+    "lat": -6.2086,
+    "lon": 39.3187
+  },
+  {
+    "name": "WA-103 Feeder West \"A\" Mbuzini - Kijinchi (AL 01)",
+    "lat": -6.13,
+    "lon": 39.25
+  },
+  {
+    "name": "WA-103 Feeder West \"A\" Mbuzini - Kijinchi (AL 02)",
+    "lat": -6.13,
+    "lon": 39.25
+  },
+  {
+    "name": "WA-103 Feeder West \"A\" Mbuzini - Kijinchi (AL 03)",
+    "lat": -6.13,
+    "lon": 39.25
+  },
+  {
+    "name": "WA-111 Feeder West \"A\" Raha -Ukunjwi Road",
+    "lat": -6.15,
+    "lon": 39.24
+  },
+  {
+    "name": "NA-200 Feeder North \"A\" Matemwe - Sunshine Hotel & Spur",
+    "lat": -5.8217,
+    "lon": 39.3548,
+    "lat_survey": -5.82168852,
+    "lon_survey": 39.35477444,
+    "survey_src": "200-Muyuni Junction-Sunshine Marine Lodge AL1"
+  },
+  {
+    "name": "CE-201 Feeder Central Istiqama-Zanzibar University",
+    "lat": -6.217,
+    "lon": 39.3214,
+    "lat_survey": -6.20973963,
+    "lon_survey": 39.31635218,
+    "survey_src": "201-Istiqama-Zanzibar University access B"
+  },
+  {
+    "name": "SO-202 Feeder South Muyuni A(Kibaoni)-Muyuni C(Dindi)",
+    "lat": -6.3585,
+    "lon": 39.4612,
+    "lat_survey": -6.35849123,
+    "lon_survey": 39.4612161,
+    "survey_src": "202-Muyuni A(Kibaoni)-Muyuni C(Dindi)"
+  },
+  {
+    "name": "SO-203 Feeder South Muyuni B(Kidodoni) - Ng'ombeni - Skuli ndorobo Spur",
+    "lat": -6.3708,
+    "lon": 39.4457,
+    "lat_survey": -6.37074616,
+    "lon_survey": 39.44570079,
+    "survey_src": "203-Muyuni B(Kidodoni) - Ng'ombeni - Skuli ndo"
+  },
+  {
+    "name": "SO-204 Feeder South Dindi-Mchangamle_Wasusanya_Kilimatangi Spar",
+    "lat": -6.3865,
+    "lon": 39.465,
+    "lat_survey": -6.38647948,
+    "lon_survey": 39.46494685,
+    "survey_src": "204-Dindi-Mchangamle_Wasusanya_Kilimatangi Spa"
+  },
+  {
+    "name": "SO-205 Feeder South Kidodofirishi - Kizimachakacha",
+    "lat": -6.4582,
+    "lon": 39.5228
+  },
+  {
+    "name": "SO-206 Feeder South Kisokoni - Kaskazi(Kikwecheni) (AL 1)",
+    "lat": -6.4436,
+    "lon": 39.526,
+    "lat_survey": -6.4435554,
+    "lon_survey": 39.52604324,
+    "survey_src": "206-Kisokoni - Kaskazi(Kikwecheni) (AL 1)"
+  },
+  {
+    "name": "SO-206 Feeder South Kisokoni - Kituo cha afya Mtende (AL2)",
+    "lat": -6.4478,
+    "lon": 39.5258,
+    "lat_survey": -6.4435554,
+    "lon_survey": 39.52604324,
+    "survey_src": "206-Kisokoni - Kaskazi(Kikwecheni) (AL 1)"
+  },
+  {
+    "name": "SO-207 Feeder South Madete skuli - Skuli ya Kusini",
+    "lat": -6.4224,
+    "lon": 39.5549,
+    "lat_survey": -6.4224418,
+    "lon_survey": 39.55485,
+    "survey_src": "207-Madete skuli - Skuli ya Kusini"
+  },
+  {
+    "name": "SO-208 Feeder South Mnarani - Kigaeni",
+    "lat": -6.4195,
+    "lon": 39.5679,
+    "lat_survey": -6.41948399,
+    "lon_survey": 39.56791182,
+    "survey_src": "208-Mnarani - Kigaeni"
+  },
+  {
+    "name": "SO-209 Feeder South Mtendemndo - Pwani Spur",
+    "lat": -6.4592,
+    "lon": 39.5338,
+    "lat_survey": -6.45924303,
+    "lon_survey": 39.53383275,
+    "survey_src": "209-Mtendemndo-Pwani"
+  },
+  {
+    "name": "SO-210 Feeder South Mwembekungu - Kaskazi(Pemba)",
+    "lat": -6.4417,
+    "lon": 39.5255,
+    "lat_survey": -6.44171906,
+    "lon_survey": 39.52554287,
+    "survey_src": "210-Mwembekungu - Kaskazi"
+  },
+  {
+    "name": "SO-211 Feeder South Mwembesanda - Mavua",
+    "lat": -6.4328,
+    "lon": 39.5572
+  },
+  {
+    "name": "SO-212 Feeder South Nganani - Bungi - Mtegani (AL2)",
+    "lat": -6.4105,
+    "lon": 39.5503,
+    "lat_survey": -6.41047965,
+    "lon_survey": 39.55029357,
+    "survey_src": "212-Nganani - Bungi - Mtegani (AL2)"
+  },
+  {
+    "name": "SO-212 Feeder South Nganani - Kumbini - Chuini (AL1)",
+    "lat": -6.406,
+    "lon": 39.5499,
+    "lat_survey": -6.41047965,
+    "lon_survey": 39.55029357,
+    "survey_src": "212-Nganani - Bungi - Mtegani (AL2)"
+  },
+  {
+    "name": "CE-213 Feeder Central Access Road to JKU Dunga camp including car parking",
+    "lat": -6.1261,
+    "lon": 39.3189,
+    "lat_survey": -6.12605606,
+    "lon_survey": 39.31894457,
+    "survey_src": "213-Access Road to JKU Dunga camp including ca"
+  },
+  {
+    "name": "SO-214 Feeder South Tasani - Mnarani - Pwani",
+    "lat": -6.4273,
+    "lon": 39.5605
+  },
+  {
+    "name": "SO-215 Feeder South Wadini - Cheju",
+    "lat": -6.4496,
+    "lon": 39.5338
+  },
+  {
+    "name": "WB-216 Feeder West \"B\" Fuoni Mskiti wa Waarabu - Fuoni Michenzani + Spur",
+    "lat": -6.1886,
+    "lon": 39.2662,
+    "lat_survey": -6.18858008,
+    "lon_survey": 39.26616188,
+    "survey_src": "216-Fuoni Mskiti wa Waarabu - Fuoni Michenzani"
+  },
+  {
+    "name": "NB-217 Feeder Nort \"B\" Donge Mbiji - Karange + Spur",
+    "lat": -5.9593,
+    "lon": 39.2577,
+    "lat_survey": -5.94631873,
+    "lon_survey": 39.2642434,
+    "survey_src": "217-Donge Mbiji - Karange + Spur Al4"
+  },
+  {
+    "name": "WB-218 Feeder West \"B\" Fuoni Mtundani + Jangamizi feeder road",
+    "lat": -6.1905,
+    "lon": 39.2571,
+    "lat_survey": -6.19050975,
+    "lon_survey": 39.25710713,
+    "survey_src": "218-Fuoni Mtundani + Jangamizi feeder road"
+  },
+  {
+    "name": "CE-219 Feeder Central Jumbi makonter (Meli tisa) and spur",
+    "lat": -6.1844,
+    "lon": 39.2991,
+    "lat_survey": -6.18434551,
+    "lon_survey": 39.29908076,
+    "survey_src": "219-Jumbi makonter (Meli tisa) and spur AL1"
+  },
+  {
+    "name": "WB-220 Feeder West \"B\" Kisauni Mazurui - Tangi la maji feeder road and spur",
+    "lat": -6.2036,
+    "lon": 39.233,
+    "lat_survey": -6.20356192,
+    "lon_survey": 39.23302748,
+    "survey_src": "220-Kisauni Mazurui - Tangi la maji feeder roa"
+  },
+  {
+    "name": "WA-221 Feeder West \"A\" Pili space (Dole) - Shamba la bishafika feeder road",
+    "lat": -6.1154,
+    "lon": 39.2568,
+    "lat_survey": -6.11543635,
+    "lon_survey": 39.25676733,
+    "survey_src": "221-Pili space (Dole) - Shamba la bishafika fe"
+  },
+  {
+    "name": "WA-222 Feeder West \"A\" Flawa - Suleiman Kondo mskitini access road",
+    "lat": -6.1179,
+    "lon": 39.2592,
+    "lat_survey": -6.11793049,
+    "lon_survey": 39.25916622,
+    "survey_src": "222-Flawa - Suleiman Kondo mskitini access roa"
+  },
+  {
+    "name": "UR-223 Feeder Urban Ziwani Police access roads",
+    "lat": -6.1708,
+    "lon": 39.205,
+    "lat_survey": -6.17077679,
+    "lon_survey": 39.20503856,
+    "survey_src": "223-Ziwani Police access roads"
+  },
+  {
+    "name": "UR-224 Feeder Urban Kilimani Prison Headquarters access roads",
+    "lat": -6.1749,
+    "lon": 39.202,
+    "lat_survey": -6.17491818,
+    "lon_survey": 39.20200577,
+    "survey_src": "224-Kilimani Prison Headquarters access roads"
+  },
+  {
+    "name": "UR-225 Feeder Urban Bavuai camp (petrol station) - Migombani JWTZ camp feeder road",
+    "lat": -6.1917,
+    "lon": 39.2133,
+    "lat_survey": -6.19170039,
+    "lon_survey": 39.21329663,
+    "survey_src": "225-Bavuai camp (petrol station) - Migombani J"
+  },
+  {
+    "name": "WA-226 Feeder West \"A\" Access Road to Mtoni JWTZ camp",
+    "lat": -6.1326,
+    "lon": 39.2194,
+    "lat_survey": -6.13262604,
+    "lon_survey": 39.21938383,
+    "survey_src": "226-Access Road to Mtoni JWTZ camp"
+  },
+  {
+    "name": "AR-227 Feeder Varies Access Road to District sport Centers",
+    "lat": -6.16,
+    "lon": 39.2
+  },
+  {
+    "name": "AR-228 Feeder Varies Access Road to Communitities",
+    "lat": -6.16,
+    "lon": 39.2
+  },
+  {
+    "name": "WB-229 Feeder West \"B\" Mitondooni Bakery access road",
+    "lat": -6.206,
+    "lon": 39.2352,
+    "lat_survey": -6.20603446,
+    "lon_survey": 39.23516075,
+    "survey_src": "229-Mitondooni Bakery access road"
+  },
+  {
+    "name": "WB-230 Feeder West \"B\" Kisauni Mtundani feeder road",
+    "lat": -6.217,
+    "lon": 39.2366,
+    "lat_survey": -6.21699579,
+    "lon_survey": 39.23655728,
+    "survey_src": "230-Kisauni Mtundani feeder road"
+  },
+  {
+    "name": "WB-231 Feeder West \"B\" Fuoni Melisita Chunga - Mwera melisita (Jia la Said Ali)",
+    "lat": -6.1821,
+    "lon": 39.2632,
+    "lat_survey": -6.18214492,
+    "lon_survey": 39.26321772,
+    "survey_src": "231-Fuoni Melisita Chunga - Mwera melisita (Ji"
+  },
+  {
+    "name": "WB-232 Feeder West \"B\" Maungani Vijijini - Shakani feeder road and spur",
+    "lat": -6.2376,
+    "lon": 39.2437,
+    "lat_survey": -6.23760891,
+    "lon_survey": 39.24365663,
+    "survey_src": "232-Maungani Vijijini-Shakani AL1"
+  }
+]
