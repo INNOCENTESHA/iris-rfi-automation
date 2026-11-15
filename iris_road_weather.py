@@ -1,41 +1,43 @@
 #!/usr/bin/env python3
 """
-IRIS ROAD WEATHER ADVISORY  —  standalone (no n8n)
-==================================================
-Replaces the 24-node "IRIS Road Weather Advisory" n8n workflow.
+IRIS Road Weather Advisory
+==========================
+Daily construction road-weather advisory for the IRIS-LUPTAN JV road projects
+on Unguja and Pemba (Zanzibar).
 
 Pipeline (per island):
-  1. Read RFI_DATA tabs from both project spreadsheets (Google Sheets API)
-  2. Scope to site works of the last 3 days   (port of the n8n "Scope RFIs" JS)
-  3. Resolve in-scope road codes to coordinates from the master road list,
+  1. Read the RFI_DATA tabs of both project spreadsheets (Google Sheets API)
+  2. Scope to site works inspected in the last 3 days
+  3. Resolve the in-scope road codes to coordinates from the master road list,
      preferring survey-derived centre coordinates where available
-  4. Fetch weather for those roads only
-  5. Compute STATUS + icons deterministically from the documented thresholds
-  6. Render the complete HTML report (exact sections / colours / fonts)
-  7. Ask Claude for the narrative parts only (exec summary + advisories)
+  4. Fetch the weather forecast for those roads only
+  5. Compute STATUS and icons deterministically from fixed thresholds
+  6. Render the complete HTML report (fixed sections, colours and fonts)
+  7. Ask Claude for the narrative parts only (executive summary + advisories)
   8. Email the report
 
-Why rendering is deterministic: the approved format fixes every table, colour,
-icon and status rule, and per-road hourly tables for dozens of roads are far
-too much output for one model response to emit reliably. Python renders the
-structure; the model writes only prose. Nothing can be truncated or restyled.
+Rendering is deterministic: Python builds every table and status badge, and the
+model writes prose only, so the report cannot be truncated or restyled.
 
-Config files (in weather_assets/, created alongside this script):
-  <island>_roads.json    road names + coordinates (verbatim names)
-  <island>_system.txt    the approved format brief (reference)
-  recipients.json        {"unguja":{"to":[...]},"pemba":{"to":[...]}}
+Config files (weather_assets/, next to this script):
+  <island>_roads.json    road names + coordinates
+  spec_clauses.json      SSRW 2000 / PMDM 1999 clauses cited in the advisories
+  recipients.json        {"unguja":{"to":[...]},"pemba":{"to":[...]}}  (optional;
+                         WEATHER_RECIPIENTS_JSON takes precedence)
 
 Usage:
-  python C:\\AI-Projects\\iris_road_weather.py --island unguja --dry-run
-  python C:\\AI-Projects\\iris_road_weather.py --island both
+  python iris_road_weather.py --island unguja --dry-run
+  python iris_road_weather.py --island both
 
 Environment:
-  ANTHROPIC_API_KEY   narrative (omit -> built-in narrative)
-  ANTHROPIC_MODEL     default claude-sonnet-5-5
-  GMAIL_USER          sending account (required to send)
-  GMAIL_APP_PASSWORD  app password for that account (required to send)
-  WEATHER_PROVIDER    openmeteo (default) | msn
-  IRIS_BASE_DIR       default C:\\AI-Projects
+  ANTHROPIC_API_KEY        narrative (omit -> built-in narrative)
+  ANTHROPIC_MODEL          default claude-sonnet-5-5
+  GOOGLE_TOKEN_PATH        OAuth token file (default: google_token.json here)
+  GMAIL_USER               sending account (required to send)
+  GMAIL_APP_PASSWORD       app password for that account (required to send)
+  WEATHER_RECIPIENTS_JSON  recipients as JSON (preferred over recipients.json)
+  WEATHER_PROVIDER         openmeteo (default) | msn
+  IRIS_BASE_DIR            base folder (default: this script's folder)
 """
 
 import os
@@ -62,7 +64,7 @@ except Exception:
     pass
 
 # ── Config ────────────────────────────────────────────────────────────────────
-BASE_DIR = os.environ.get("IRIS_BASE_DIR", r"C:\AI-Projects")
+BASE_DIR = os.environ.get("IRIS_BASE_DIR", os.path.dirname(os.path.abspath(__file__)))
 ASSETS = os.path.join(BASE_DIR, "weather_assets")
 RECIPIENTS_FILE = os.path.join(ASSETS, "recipients.json")
 TOKEN_FILE = os.environ.get("GOOGLE_TOKEN_PATH", os.path.join(BASE_DIR, "google_token.json"))
@@ -227,7 +229,7 @@ def read_tab(svc, ssid, tab):
     return out
 
 
-# ── RFI scoping (faithful port of the n8n "Scope RFIs" JS) ───────────────────
+# ── RFI scoping ───────────────────────────────────────────────────────────────
 MONTHS = {m: i for i, m in enumerate(
     ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"])}
 
@@ -386,7 +388,7 @@ MSN_SKY = {
 
 
 def fetch_msn(lat, lon):
-    """Legacy provider used by the n8n workflow.
+    """MSN Weather provider.
 
     IMPORTANT: this endpoint returns CURRENT conditions and a DAILY forecast
     only — it has no hourly series. The six hourly slots are therefore MODELLED
@@ -462,7 +464,7 @@ def fetch_weather(road, provider):
     return road, None, last
 
 
-# ── Spec clause lookup (replaces the n8n Data Table tools) ───────────────────
+# ── Spec clause lookup ────────────────────────────────────────────────────────
 CITED = {
     "SSRW 2000": ["3606", "3504", "3506", "3507", "3704", "3803", "4104", "4205"],
     "PMDM 1999": ["2.1", "2.2", "6.3.2"],
@@ -896,7 +898,7 @@ def run_island(island, args, svc, clauses):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="IRIS Road Weather Advisory (standalone)")
+    ap = argparse.ArgumentParser(description="IRIS Road Weather Advisory")
     ap.add_argument("--island", default="both", choices=["unguja", "pemba", "both"])
     ap.add_argument("--dry-run", action="store_true", help="render + save, do not email")
     ap.add_argument("--no-ai", action="store_true", help="skip Claude, use built-in narrative")
@@ -908,7 +910,7 @@ def main():
     args = ap.parse_args()
 
     log("=" * 70)
-    log("  IRIS ROAD WEATHER ADVISORY   (standalone — no n8n)")
+    log("  IRIS ROAD WEATHER ADVISORY")
     log("=" * 70)
     clauses = load_clauses()
     log(f"  Spec clauses loaded: {len(clauses)}"
