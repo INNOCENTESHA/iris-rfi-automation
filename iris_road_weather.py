@@ -628,12 +628,56 @@ def section_title(t):
             f'padding-bottom:6px;margin:26px 0 14px;font-size:18px">{t}</h2>')
 
 
+def rfis_by_code(scope):
+    """Group the in-scope RFIs by road code so each road card can list its works.
+
+    RFIs carry a road CODE only, not an alignment, so when a code has several
+    alignments (AL1/AL2/...) the same works are shown on each of that code's
+    cards — they are the works recorded against that road.
+    """
+    by = {}
+    for x in scope.get("items", []):
+        c = (x.get("code") or "").strip().upper()
+        if c:
+            by.setdefault(c, []).append(x)
+    for c in by:
+        by[c].sort(key=lambda x: x["d"], reverse=True)
+    return by
+
+
+def rfi_block(code, by_code):
+    """The 'RFI Works (last 3 days)' list shown inside a road card."""
+    items = by_code.get((code or "").upper(), [])
+    if not items:
+        return (f'<div style="margin:4px 0 12px;font-size:12.5px;color:#6b7280">'
+                f'<b>RFI Works (last 3 days):</b> none recorded against this road.</div>')
+    lines = []
+    for x in items:
+        d = x["d"].strftime("%d-%m-%Y")
+        act = (x.get("act") or x.get("desc") or "").strip().upper()
+        desc = (x.get("desc") or "").strip()
+        stn = (x.get("stn") or "").strip()
+        parts = [f'{esc(d)} | RFI {esc(x.get("rfi") or "N/A")}: <b>{esc(act)}</b>']
+        if desc and desc.upper() != act:
+            parts.append(f' ({esc(desc)})')
+        if stn:
+            parts.append(f', Ch {esc(stn)}')
+        lines.append(f'<li style="margin-bottom:3px">{"".join(parts)}</li>')
+    return (f'<div style="margin:4px 0 12px;font-size:12.5px;line-height:1.55">'
+            f'<div style="font-weight:700;color:{CLR["navy"]};margin-bottom:5px">'
+            f'RFI Works (last 3 days):</div>'
+            f'<ul style="margin:0;padding-left:18px">{"".join(lines)}</ul></div>')
+
+
 def render_report(island, rows, scope, narr, provider, now):
     cfg = ISLANDS[island]
     L = cfg["label"]
     modelled = any(r["w"].get("modelled") for r in rows)
     src = ("MSN Weather (hourly values modelled from the daily forecast)"
            if provider == "msn" else "Open-Meteo hourly forecast")
+    by_code = rfis_by_code(scope)
+    codes_line = ", ".join(scope.get("codes", [])[:12]) + (
+        " …" if len(scope.get("codes", [])) > 12 else "")
     P = [f'<!DOCTYPE html><html><head><meta charset="utf-8">'
          f'<meta name="viewport" content="width=device-width,initial-scale=1">'
          f'<title>IRIS-LUPTAN JV Road Weather Advisory — {esc(L)}</title></head>'
@@ -650,8 +694,10 @@ def render_report(island, rows, scope, narr, provider, now):
              f'<div style="font-size:13px;opacity:.92;margin-top:6px">'
              f'Data source: {esc(src)} &nbsp;·&nbsp; Report generated: '
              f'{now.strftime("%d-%m-%Y %H:%M")} EAT<br>'
-             f'Coverage: {len(rows)} road alignment(s) in scope, from {scope["count"]} '
-             f'site-work RFI(s) in the last 3 days &nbsp;·&nbsp; '
+             f'Coverage: {len(rows)} {esc(L.split()[0].title())} RFI road alignment(s)'
+             + (f' ({esc(codes_line)})' if codes_line.strip() else '')
+             + f' &nbsp;·&nbsp; {scope["count"]} site-work RFI(s) in the last '
+             f'{scope.get("days", 3)} days<br>'
              f'Issued by IRIS-LUPTAN JV Weather Intelligence</div></div>')
 
     # SECTION 2 — executive summary + 3-7 day outlook
@@ -690,7 +736,8 @@ def render_report(island, rows, scope, narr, provider, now):
                  f'{cu["icon"]} {esc(cu["text"])} &nbsp;·&nbsp; {esc(cu["temp"])} °C '
                  f'&nbsp;·&nbsp; 💧 {esc(cu["humidity"])}% &nbsp;·&nbsp; '
                  f'💨 {esc(cu["wind"])} km/h &nbsp; {badge(cu["status"])}</div>'
-                 f'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse"><tr>'
+                 + rfi_block(r["road"]["name"].split()[0], by_code)
+                 + f'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse"><tr>'
                  + _th("Time") + _th("Temp °C") + _th(f"Condition {dom_icon}")
                  + _th("Humidity %") + _th("Wind km/h") + _th("Precip %") + _th("Status")
                  + "</tr>")
