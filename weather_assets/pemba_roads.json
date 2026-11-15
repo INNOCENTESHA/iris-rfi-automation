@@ -1,0 +1,224 @@
+[
+  {
+    "name": "WA-104 Rural West \"A\" Konde - Wete",
+    "lat": -5.0491,
+    "lon": 39.7341
+  },
+  {
+    "name": "WA-104 Rural West \"A\" Wete - Gando",
+    "lat": -5.0491,
+    "lon": 39.7341
+  },
+  {
+    "name": "MK-105 Rural Mkoani Mtambile-Kengeja(Polisi) AL 1",
+    "lat": -5.3972,
+    "lon": 39.7177
+  },
+  {
+    "name": "CH-106 Feeder Chake Chake Ole Mihogoni - Uhanga - Amani",
+    "lat": -5.1813,
+    "lon": 39.8118
+  },
+  {
+    "name": "CH-107 Feeder Chake Chake Pujini - Mwalimu Nyerere",
+    "lat": -5.2883,
+    "lon": 39.8092
+  },
+  {
+    "name": "MK-108 Feeder Mkoani Kwapopo - Goli la Mpira",
+    "lat": -5.349,
+    "lon": 39.7773
+  },
+  {
+    "name": "MK-109 Feeder Mkoani Minazini-Mazrui",
+    "lat": -5.37,
+    "lon": 39.65
+  },
+  {
+    "name": "MK-110 Feeder Mkoani Mwambe (Mawasiliano)-Chanjaani Shool",
+    "lat": -5.4211,
+    "lon": 39.7465
+  },
+  {
+    "name": "MK-112 Feeder Mkoani Mazrui -Usiambini",
+    "lat": -5.4234,
+    "lon": 39.7176
+  },
+  {
+    "name": "MK-113 Feeder Mkoani Kengeja-Mwambe(Polisi) AL 2",
+    "lat": -5.4211,
+    "lon": 39.7465
+  },
+  {
+    "name": "CH-241 Feeder Chake Chake Dutani JCT - Dutani",
+    "lat": -5.2157,
+    "lon": 39.7931
+  },
+  {
+    "name": "CH-245 Feeder Chake Chake Pujini(Kilimo)-Mkandandume _Kibaridi",
+    "lat": -5.3105,
+    "lon": 39.8078,
+    "lat_survey": -5.33654053,
+    "lon_survey": 39.7182341,
+    "survey_src": "245-Kuyuni-Kalani"
+  },
+  {
+    "name": "CH-248 Feeder Chake Chake Chanjaani-Mitamani-Pujini",
+    "lat": -5.2801,
+    "lon": 39.7847,
+    "lat_survey": -5.28007352,
+    "lon_survey": 39.784722,
+    "survey_src": "248-Chanjaani-Mitamani-Pujuni"
+  },
+  {
+    "name": "MK-233 Feeder Mkoani Kiwani Sokoni _Mchochani",
+    "lat": -5.4038,
+    "lon": 39.7601
+  },
+  {
+    "name": "MK-234 Feeder Mkoani Kichaka _Chwaka Kubwa_Chwaka Ndogo Spur",
+    "lat": -5.383,
+    "lon": 39.7636
+  },
+  {
+    "name": "MK-235 Feeder Mkoani Kichungwani_Kwa Sanani",
+    "lat": -5.4138,
+    "lon": 39.7467,
+    "lat_survey": -5.41378873,
+    "lon_survey": 39.74665071,
+    "survey_src": "235-Kichungwani - Kwa Sanani ( 2 km )"
+  },
+  {
+    "name": "MK-236 Feeder Mkoani Mauwani_Kajirambeni_Kirimdomo and Kihogoni Spar",
+    "lat": -5.3855,
+    "lon": 39.7392
+  },
+  {
+    "name": "MK-237 Feeder Mkoani Mahuduthi_Sipwese+Mto Mkuu Spar",
+    "lat": -5.4036,
+    "lon": 39.7233,
+    "lat_survey": -5.40361588,
+    "lon_survey": 39.72331551,
+    "survey_src": "237-Mahuduthi_Sipwese+Mto Mkuu Spar"
+  },
+  {
+    "name": "MK-238 Feeder Mkoani Minazini _Shikazako",
+    "lat": -5.3768,
+    "lon": 39.7284,
+    "lat_survey": -5.37681647,
+    "lon_survey": 39.72837326,
+    "survey_src": "238-Minazini-Shikazako"
+  },
+  {
+    "name": "MK-239 Feeder Mkoani Mtamba -Sitondoo-Tomondo-Tondoni Spar",
+    "lat": -5.3647,
+    "lon": 39.7588,
+    "lat_survey": -5.36471141,
+    "lon_survey": 39.75881256,
+    "survey_src": "239-Mtamba-Kitondoo + Tomondo"
+  },
+  {
+    "name": "MK-242 Feeder Mkoani Mizingani - Wamba + Funfulagoni Cocolagoon Spur",
+    "lat": -5.3188,
+    "lon": 39.6987,
+    "lat_survey": -5.31883444,
+    "lon_survey": 39.69871459,
+    "survey_src": "242-Mizingani - Wambaa+Fundu Lagoon"
+  },
+  {
+    "name": "MK-243 Feeder Mkoani Chambani(kwa Mbunge) - JKU - Mtangani",
+    "lat": -5.3593,
+    "lon": 39.782,
+    "lat_survey": -5.3592462,
+    "lon_survey": 39.78195914,
+    "survey_src": "243-Chambani(kwa Mbunge) - JKU - Mtangani"
+  },
+  {
+    "name": "MK-245 Feeder Mkoani Kuyuni -Kalani-Zawadini",
+    "lat": -5.3365,
+    "lon": 39.7182,
+    "lat_survey": -5.33654053,
+    "lon_survey": 39.7182341,
+    "survey_src": "245-Kuyuni-Kalani"
+  },
+  {
+    "name": "MK-247 Feeder Mkoani Kengeja-Minazini-Kangani (Kawawa Road)",
+    "lat": -5.4194,
+    "lon": 39.7067,
+    "lat_survey": -5.41936345,
+    "lon_survey": 39.70669239,
+    "survey_src": "247-Kengeja-Minazini-Kangani"
+  },
+  {
+    "name": "MK-249 Feeder Mkoani Mtambile (Police Post)-Kangaani",
+    "lat": -5.4026,
+    "lon": 39.6918,
+    "lat_survey": -5.40263325,
+    "lon_survey": 39.69179266,
+    "survey_src": "249-Mtambile ( Police Post ) - Kangaani"
+  },
+  {
+    "name": "MK-250 Feeder Mkoani Kenya-Kwa Mtora (Chambani)",
+    "lat": -5.3344,
+    "lon": 39.7462,
+    "lat_survey": -5.33438198,
+    "lon_survey": 39.74623089,
+    "survey_src": "250-Kenya Kwa Mtora"
+  },
+  {
+    "name": "MI-240 Feeder Micheweni Kiuyu Mbuyuni_Bandari(Micheweni Access Road) AL1",
+    "lat": -4.9325,
+    "lon": 39.8567,
+    "lat_survey": -4.99694053,
+    "lon_survey": 39.83793215,
+    "survey_src": "240-Mjini kiuyu msituni - Kiuyu road(Michweni "
+  },
+  {
+    "name": "MI-240 Feeder Micheweni Michwewni _Mchupwe(Micheweni Acces Road) AL2",
+    "lat": -4.9854,
+    "lon": 39.8435,
+    "lat_survey": -4.99694053,
+    "lon_survey": 39.83793215,
+    "survey_src": "240-Mjini kiuyu msituni - Kiuyu road(Michweni "
+  },
+  {
+    "name": "MI-240 Feeder Micheweni Micheweni Maskani_Majenzi(Michweni Access Road) AL3",
+    "lat": -4.9793,
+    "lon": 39.8325,
+    "lat_survey": -4.99694053,
+    "lon_survey": 39.83793215,
+    "survey_src": "240-Mjini kiuyu msituni - Kiuyu road(Michweni "
+  },
+  {
+    "name": "MI-240 Feeder Micheweni Mjini kiuyu msituni - Kiuyu road(Michweni Access Road) AL4",
+    "lat": -4.997,
+    "lon": 39.8379,
+    "lat_survey": -4.99694053,
+    "lon_survey": 39.83793215,
+    "survey_src": "240-Mjini kiuyu msituni - Kiuyu road(Michweni "
+  },
+  {
+    "name": "MI-244 Feeder Micheweni Konde Sokoni - Kiuyu kwa Manda",
+    "lat": -4.9418,
+    "lon": 39.734,
+    "lat_survey": -4.94180194,
+    "lon_survey": 39.73395466,
+    "survey_src": "244-Konde Sokoni - Kiuyu Kwa Manda"
+  },
+  {
+    "name": "WE-246 Feeder Wete Mianzini-Mabatini (Gando)",
+    "lat": -4.991,
+    "lon": 39.695,
+    "lat_survey": -4.99098925,
+    "lon_survey": 39.69503358,
+    "survey_src": "246-Mianzini - Mabatini"
+  },
+  {
+    "name": "WE-251 Feeder Wete Wete access Road",
+    "lat": -5.0335,
+    "lon": 39.724,
+    "lat_survey": -5.03349371,
+    "lon_survey": 39.72404062,
+    "survey_src": "251-Wete Access Road"
+  }
+]
