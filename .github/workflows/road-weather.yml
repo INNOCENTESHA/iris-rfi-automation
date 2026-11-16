@@ -106,6 +106,7 @@ jobs:
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           WEATHER_RECIPIENTS_JSON: ${{ secrets.WEATHER_RECIPIENTS_JSON }}
           WEATHER_PROVIDER: ${{ vars.WEATHER_PROVIDER || 'openmeteo' }}
+          DASHBOARD_URL: ${{ vars.DASHBOARD_URL || 'https://mindfreedom.co.tz/weather/' }}
           PYTHONUTF8: '1'
         run: |
           python iris_road_weather.py \
