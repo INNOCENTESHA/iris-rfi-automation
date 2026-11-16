@@ -28,6 +28,14 @@ concurrency:
   group: road-weather-${{ github.event.schedule || github.event.inputs.island }}
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
+# Private dashboard storage (Cloudflare Workers KV). Not secrets; replace with your own when reusing.
+env:
+  CF_ACCOUNT_ID: 468a893a9e1ab4c82dcefd5ae849028f
+  CF_KV_NAMESPACE_ID: 705a4e926c1b4bdf8cf1bd8d9c6130dc
+
 jobs:
   advisory:
     runs-on: ubuntu-latest
@@ -69,6 +77,25 @@ jobs:
             echo "island=${{ github.event.inputs.island }}" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Fetch dashboard index
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          SITE="$RUNNER_TEMP/site"
+          mkdir -p "$SITE/advisories"
+          [ -n "$CLOUDFLARE_API_TOKEN" ] || { echo "::warning::CLOUDFLARE_API_TOKEN not set - dashboard will not be updated"; exit 0; }
+          code=$(curl -sS -o "$SITE/advisories/index.json" -w '%{http_code}' \
+            "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/storage/kv/namespaces/$CF_KV_NAMESPACE_ID/values/advisories%2Findex.json" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")
+          if [ "$code" = "200" ]; then
+            echo "existing index: $(jq length "$SITE/advisories/index.json") entries"
+          elif [ "$code" = "404" ]; then
+            rm -f "$SITE/advisories/index.json"; echo "no index yet - starting fresh"
+          else
+            rm -f "$SITE/advisories/index.json"
+            echo "::error::could not read dashboard index (HTTP $code)"; exit 1
+          fi
+
       - name: Run advisory
         env:
           IRIS_BASE_DIR: ${{ github.workspace }}
@@ -83,6 +110,7 @@ jobs:
         run: |
           python iris_road_weather.py \
             --island "${{ steps.pick.outputs.island }}" \
+            --publish "$RUNNER_TEMP/site" \
             ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && '--dry-run' || '' }}
 
       - name: Upload rendered advisory
@@ -93,3 +121,24 @@ jobs:
           path: logs/*.html
           if-no-files-found: warn
           retention-days: 30
+
+
+      - name: Publish to private dashboard
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          SITE="$RUNNER_TEMP/site"
+          [ -n "$CLOUDFLARE_API_TOKEN" ] || exit 0
+          [ -f "$SITE/advisories/index.json" ] || { echo "Nothing to publish"; exit 0; }
+          cd "$SITE"
+          put() {  # put <key> <content-type>
+            key=$(jq -rn --arg k "$1" '$k|@uri')
+            curl -sS -X PUT "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/storage/kv/namespaces/$CF_KV_NAMESPACE_ID/values/$key" \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "Content-Type: $2" \
+              --data-binary "@$1" > "$RUNNER_TEMP/resp.json"
+            jq -e '.success' "$RUNNER_TEMP/resp.json" > /dev/null || { jq '.errors' "$RUNNER_TEMP/resp.json"; exit 1; }
+            echo "uploaded $1"
+          }
+          find advisories -name '*.html' | sort | while read -r f; do put "$f" "text/html"; done
+          put "advisories/index.json" "application/json"
