@@ -1,0 +1,101 @@
+name: Deploy Weather Dashboard
+
+# Deploys the private Road Weather dashboard to Cloudflare:
+#   - cloudflare/weather-worker.js  -> Worker "iris-weather" on <domain>/weather*
+#   - site/index.html               -> Workers KV (served by the Worker)
+# Cloudflare Access protects the route; the Worker re-verifies every request.
+#
+# Required:
+#   secret   CLOUDFLARE_API_TOKEN   Workers Scripts: Edit, Workers KV Storage: Edit, Workers Routes: Edit
+#   variable CF_ACCESS_AUD          Access application AUD tag (Worker denies everything until set)
+# The identifiers below are not secrets; replace them with your own when reusing this repository.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'cloudflare/**'
+      - 'site/**'
+      - '.github/workflows/deploy-weather-site.yml'
+  workflow_dispatch:
+
+env:
+  CF_ACCOUNT_ID: 468a893a9e1ab4c82dcefd5ae849028f
+  CF_ZONE_ID: 0604f46445eecd864aa4920ae1f1ee45
+  CF_KV_NAMESPACE_ID: 705a4e926c1b4bdf8cf1bd8d9c6130dc
+  CF_TEAM_DOMAIN: https://lucky-silence-0b0d.cloudflareaccess.com
+  CF_ROUTE: mindfreedom.co.tz/weather*
+  CF_WORKER: iris-weather
+
+concurrency:
+  group: deploy-weather-site
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_ACCESS_AUD: ${{ vars.CF_ACCESS_AUD }}
+      API: https://api.cloudflare.com/client/v4
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check configuration
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error::CLOUDFLARE_API_TOKEN secret is not set"; exit 1
+          fi
+          if [ -z "$CF_ACCESS_AUD" ]; then
+            echo "::warning::CF_ACCESS_AUD variable is not set - the dashboard will deny every request until it is"
+          fi
+
+      - name: Deploy Worker
+        run: |
+          set -euo pipefail
+          jq -n --arg kv "$CF_KV_NAMESPACE_ID" --arg team "$CF_TEAM_DOMAIN" --arg aud "$CF_ACCESS_AUD" '
+            {main_module: "weather-worker.js", compatibility_date: "2026-01-01",
+             bindings: ([{type: "kv_namespace", name: "WEATHER", namespace_id: $kv},
+                         {type: "plain_text", name: "TEAM_DOMAIN", text: $team}]
+                        + (if $aud == "" then [] else [{type: "plain_text", name: "POLICY_AUD", text: $aud}] end))}' > meta.json
+          curl -sS -X PUT "$API/accounts/$CF_ACCOUNT_ID/workers/scripts/$CF_WORKER" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -F "metadata=@meta.json;type=application/json" \
+            -F "weather-worker.js=@cloudflare/weather-worker.js;type=application/javascript+module" > resp.json
+          jq -e '.success' resp.json > /dev/null || { jq '.errors' resp.json; exit 1; }
+          echo "Worker $CF_WORKER deployed"
+
+      - name: Attach route
+        run: |
+          set -euo pipefail
+          auth="Authorization: Bearer $CLOUDFLARE_API_TOKEN"
+          curl -sS "$API/zones/$CF_ZONE_ID/workers/routes" -H "$auth" > routes.json
+          jq -e '.success' routes.json > /dev/null || { jq '.errors' routes.json; exit 1; }
+          id=$(jq -r --arg p "$CF_ROUTE" '.result[] | select(.pattern == $p) | .id' routes.json | head -n1)
+          body=$(jq -n --arg p "$CF_ROUTE" --arg s "$CF_WORKER" '{pattern: $p, script: $s}')
+          if [ -n "$id" ]; then
+            curl -sS -X PUT "$API/zones/$CF_ZONE_ID/workers/routes/$id" -H "$auth" \
+              -H "Content-Type: application/json" --data "$body" > resp.json
+          else
+            curl -sS -X POST "$API/zones/$CF_ZONE_ID/workers/routes" -H "$auth" \
+              -H "Content-Type: application/json" --data "$body" > resp.json
+          fi
+          jq -e '.success' resp.json > /dev/null || { jq '.errors' resp.json; exit 1; }
+          echo "Route $CF_ROUTE -> $CF_WORKER"
+
+      - name: Turn off the public workers.dev address
+        continue-on-error: true
+        run: |
+          curl -sS -X POST "$API/accounts/$CF_ACCOUNT_ID/workers/scripts/$CF_WORKER/subdomain" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "Content-Type: application/json" \
+            --data '{"enabled": false, "previews_enabled": false}' | jq '{success, errors}'
+
+      - name: Upload dashboard page
+        run: |
+          set -euo pipefail
+          curl -sS -X PUT "$API/accounts/$CF_ACCOUNT_ID/storage/kv/namespaces/$CF_KV_NAMESPACE_ID/values/index.html" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "Content-Type: text/html" \
+            --data-binary @site/index.html > resp.json
+          jq -e '.success' resp.json > /dev/null || { jq '.errors' resp.json; exit 1; }
+          echo "index.html uploaded"
