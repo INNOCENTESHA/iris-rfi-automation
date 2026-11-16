@@ -886,6 +886,12 @@ def run_island(island, args, svc, clauses):
         f.write(doc)
     log(f"    {len(doc):,} bytes -> {out}")
 
+    if args.publish:
+        from weather_publish import publish_advisory
+        rel = publish_advisory(args.publish, island, cfg["label"], now, doc, results, scope,
+                               worst([r["status"] for r in results]) if results else None)
+        log(f"    published -> {rel}")
+
     subject = cfg["subject"].format(date=now.strftime("%d-%m-%Y"))
     if args.dry_run:
         log(f"[7] DRY RUN — not sending.  Subject: {subject}")
@@ -907,6 +913,8 @@ def main():
     ap.add_argument("--days", type=int, default=3, help="RFI look-back window")
     ap.add_argument("--limit", type=int, default=0, help="cap roads (testing)")
     ap.add_argument("--out", default=None, help="output HTML path (single island)")
+    ap.add_argument("--publish", default=None, metavar="DIR",
+                    help="also write the advisory and index.json into this site folder")
     args = ap.parse_args()
 
     log("=" * 70)
