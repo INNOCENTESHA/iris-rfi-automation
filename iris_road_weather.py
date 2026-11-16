@@ -810,6 +810,23 @@ def load_recipients(island):
     return to
 
 
+def with_dashboard_link(doc):
+    """Add a button to the private dashboard (DASHBOARD_URL) to the emailed copy."""
+    url = os.environ.get("DASHBOARD_URL", "").strip()
+    tail = "</div></div></body></html>"
+    if not url or not doc.endswith(tail):
+        return doc
+    link = ('<div style="text-align:center;margin:20px 0 6px">'
+            f'<a href="{html.escape(url, quote=True)}" style="display:inline-block;'
+            f'background:{CLR["navy"]};color:#ffffff;text-decoration:none;font-weight:700;'
+            'font-size:14px;padding:12px 26px;border-radius:8px">'
+            'Open the live weather dashboard</a>'
+            '<div style="font-size:12px;color:#6b7280;margin-top:8px">'
+            'Sign in with the email address that received this advisory; '
+            'a one-time code will be sent to you.</div></div>')
+    return doc[:-len(tail)] + "</div>" + link + "</div></body></html>"
+
+
 def send_email(subject, to_list, body_html):
     user = os.environ.get("GMAIL_USER", "").strip()
     pw = os.environ.get("GMAIL_APP_PASSWORD", "").replace(" ", "")
@@ -898,7 +915,7 @@ def run_island(island, args, svc, clauses):
     else:
         to = load_recipients(island)
         log(f"[7] Sending to {len(to)} recipient(s) …")
-        send_email(subject, to, doc)
+        send_email(subject, to, with_dashboard_link(doc))
         log("    sent")
     return len(results)
 
