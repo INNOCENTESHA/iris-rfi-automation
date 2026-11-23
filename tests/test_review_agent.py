@@ -95,9 +95,35 @@ class FolderTests(unittest.TestCase):
     def test_collect_and_filter(self):
         docs = agent.collect_documents(self.dir)
         self.assertEqual(len(docs), 3)
+        for d in docs:
+            d["date"] = agent.doc_date(d, {})
         since = (datetime.now() - timedelta(days=14)).date()
         kept = [d for d in docs if agent.include_by_date(d, since)]
         self.assertEqual(len(kept), 2)  # the 60-day-old archive is left out
+
+    def test_undated_uses_email_date_or_is_skipped(self):
+        since = (datetime.now() - timedelta(days=14)).date()
+        loose = {"archive": "", "inner": "IRIS-Q-RFI-U-25-0083.pdf"}
+        loose["date"] = agent.doc_date(loose, {})
+        self.assertFalse(agent.include_by_date(loose, since))
+        recent = {"archive": "KIZIMKAZI ROAD NETWORK RFI's FOR LAB.zip", "inner": "a.pdf"}
+        recent["date"] = agent.doc_date(recent, {recent["archive"]: datetime.now().date()})
+        self.assertTrue(agent.include_by_date(recent, since))
+
+    def test_email_dates_from_log(self):
+        log = os.path.join(self.dir, "log.json")
+        with open(log, "w") as f:
+            f.write('[{"email_date": "17-11-2026", "safe_name": "X.zip", "saved_path": "/a/X.zip"}]')
+        self.assertEqual(str(agent.load_email_dates(log)["X.zip"]), "2026-11-17")
+
+    def test_cap_is_shared_between_projects(self):
+        today = datetime.now().date()
+        docs = ([{"project": "163.22", "date": today, "n": i} for i in range(10)]
+                + [{"project": "kizimkazi", "date": today, "n": i} for i in range(3)]
+                + [{"project": "65.5", "date": today, "n": i} for i in range(3)])
+        picked = agent.pick_balanced(docs, 9)
+        self.assertEqual(sum(d["project"] == "kizimkazi" for d in picked), 3)
+        self.assertEqual(sum(d["project"] == "65.5" for d in picked), 3)
 
     def test_request_shape(self):
         docs = agent.collect_documents(self.dir)
