@@ -1,0 +1,170 @@
+# =============================================================================
+# IRIS RFI Review Agent
+# -----------------------------------------------------------------------------
+# Reviews new site and lab RFIs for 65.5 KM, 163.22 KM Feeder & Rural Roads and
+# Kizimkazi with the Claude Message Batches API, and writes flags to the
+# "AGENT REVIEW" tab of each project's Google Sheet. On Mondays it also writes
+# a "WEEKLY SUMMARY" row per project.
+#
+# Runs at 18:30 EAT, after the IRIS RFI Daily Run (17:00 EAT).
+#
+# REQUIRED repository secrets (Settings > Secrets and variables > Actions):
+#   ANTHROPIC_API_KEY           Claude Console API key (uses your API credits)
+#   GMAIL_USER                  same as IRIS RFI Daily Run
+#   GMAIL_APP_PASSWORD          same as IRIS RFI Daily Run
+#   GOOGLE_SERVICE_ACCOUNT_B64  same as IRIS RFI Daily Run
+#
+# OPTIONAL repository variables:
+#   REVIEW_MODEL                default claude-sonnet-5-5
+#   IRIS_REVIEW_ID_KIZIMKAZI    override the Kizimkazi sheet ID
+# =============================================================================
+
+name: IRIS RFI Review Agent
+
+on:
+  schedule:
+    - cron: "30 15 * * *"   # 18:30 EAT daily
+  workflow_dispatch:
+    inputs:
+      weekly:
+        description: "Also write the weekly summary"
+        type: boolean
+        default: false
+      dry_run:
+        description: "Dry run: list what would be reviewed, no API calls or sheet writes"
+        type: boolean
+        default: false
+      since_days:
+        description: "Only review RFIs dated in the last N days (all = no limit)"
+        type: string
+        default: "14"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: iris-rfi-review-agent
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"
+  IRIS_BASE_DIR: ${{ github.workspace }}/.iris
+  RFI_ZIP_DIR: ${{ github.workspace }}/.iris/rfi_zips
+  RFI_LOG_PATH: ${{ github.workspace }}/.iris/state/_download_log.json
+  REVIEW_STATE_PATH: ${{ github.workspace }}/.iris/review/review_state.json
+  GOOGLE_SERVICE_ACCOUNT_PATH: ${{ github.workspace }}/.iris/service-account.json
+  LOG_DIR: ${{ github.workspace }}/.iris/logs
+  REVIEW_MODEL: ${{ vars.REVIEW_MODEL || 'claude-sonnet-5-5' }}
+  IRIS_REVIEW_ID_KIZIMKAZI: ${{ vars.IRIS_REVIEW_ID_KIZIMKAZI }}
+  REVIEW_SINCE_DAYS: ${{ github.event.inputs.since_days || '14' }}
+  REVIEW_WAIT_MINUTES: "40"
+
+jobs:
+  review:
+    name: Review RFIs with Claude
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Preflight - validate configuration
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          GOOGLE_SERVICE_ACCOUNT_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_B64 }}
+        run: |
+          missing=()
+          for name in ANTHROPIC_API_KEY GMAIL_USER GMAIL_APP_PASSWORD GOOGLE_SERVICE_ACCOUNT_B64; do
+            if [ -z "${!name}" ]; then missing+=("$name"); fi
+          done
+          if [ ${#missing[@]} -ne 0 ]; then
+            echo "::error title=Missing repository secrets::${missing[*]}"
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends unar || true
+
+      - run: mkdir -p "$RFI_ZIP_DIR" "$LOG_DIR" "$(dirname "$RFI_LOG_PATH")" "$(dirname "$REVIEW_STATE_PATH")"
+
+      # Re-use the attachments the IRIS RFI Daily Run already downloaded.
+      - name: Restore RFI downloads
+        uses: actions/cache@v5
+        with:
+          path: |
+            ${{ github.workspace }}/.iris/state
+            ${{ github.workspace }}/.iris/rfi_zips
+          key: iris-download-state-review-${{ github.run_id }}
+          restore-keys: |
+            iris-download-state-
+
+      # Remembers which RFIs were reviewed and any batch still running.
+      - name: Restore review state
+        uses: actions/cache@v5
+        with:
+          path: ${{ github.workspace }}/.iris/review
+          key: iris-review-state-${{ github.run_id }}
+          restore-keys: |
+            iris-review-state-
+
+      - name: Restore Google service account
+        env:
+          GOOGLE_SERVICE_ACCOUNT_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_B64 }}
+        run: |
+          printf '%s' "$GOOGLE_SERVICE_ACCOUNT_B64" | base64 -d > "$GOOGLE_SERVICE_ACCOUNT_PATH"
+          python -c "import json,sys; json.load(open(sys.argv[1]))" "$GOOGLE_SERVICE_ACCOUNT_PATH"
+          chmod 600 "$GOOGLE_SERVICE_ACCOUNT_PATH"
+
+      # Picks up anything that arrived after the 17:00 run. Dedup log means no re-downloads.
+      - name: Fetch any new RFI attachments
+        continue-on-error: true
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          IRIS_FULL_SCAN: "0"
+        run: |
+          set -o pipefail
+          python download_rfi_attachments.py 2>&1 | tee "$LOG_DIR/01-download.log"
+
+      - name: Review RFIs
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && '1' || '0' }}
+        run: |
+          set -o pipefail
+          args=()
+          # Weekly summary on Mondays (EAT) for scheduled runs, or when asked.
+          if [ "${{ github.event.inputs.weekly }}" = "true" ]; then args+=(--weekly); fi
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "$(TZ=Africa/Dar_es_Salaam date +%u)" = "1" ]; then args+=(--weekly); fi
+          if [ "$DRY_RUN" = "1" ]; then args=(--dry-run); fi
+          python rfi_review_agent.py "${args[@]}" 2>&1 | tee "$LOG_DIR/02-review.log"
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: iris-review-logs-${{ github.run_number }}
+          path: ${{ github.workspace }}/.iris/logs
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Run summary
+        if: always()
+        run: |
+          {
+            echo "## IRIS RFI Review Agent #${{ github.run_number }}"
+            echo '```'
+            tail -n 30 "$LOG_DIR/02-review.log" 2>/dev/null || echo "no review log"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

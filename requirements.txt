@@ -15,5 +15,8 @@ pdfplumber>=0.10.0
 python-docx>=1.1.0
 rarfile>=4.1
 
+# --- Claude API (rfi_review_agent.py) ---
+anthropic>=0.70.0
+
 # --- HTTP ---
 requests>=2.31.0
