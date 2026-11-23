@@ -219,18 +219,67 @@ def collect_documents(zip_dir: str) -> list[dict]:
 _NAME_DATE_RE = re.compile(r"(\d{2})[.\-_](\d{2})[.\-_](\d{4})")
 
 
+def _parse_day(text: str):
+    m = _NAME_DATE_RE.search(text or "")
+    if not m:
+        return None
+    try:
+        return datetime(int(m.group(3)), int(m.group(2)), int(m.group(1))).date()
+    except ValueError:
+        return None
+
+
+def load_email_dates(log_path: str) -> dict:
+    """Map saved file name -> email date, from the downloader's _download_log.json."""
+    try:
+        with open(log_path, encoding="utf-8") as f:
+            entries = json.load(f)
+    except (OSError, ValueError):
+        return {}
+    if isinstance(entries, dict):
+        entries = entries.get("entries") or entries.get("downloads") or []
+    out = {}
+    for e in entries if isinstance(entries, list) else []:
+        if not isinstance(e, dict):
+            continue
+        d = _parse_day(str(e.get("email_date", "")))
+        if d is None:
+            continue
+        for key in (e.get("safe_name"), e.get("filename"),
+                    os.path.basename(str(e.get("saved_path") or ""))):
+            if key:
+                out[key] = d
+    return out
+
+
+def doc_date(doc: dict, email_dates: dict):
+    """Date in the file name, else archive name, else the email it came in."""
+    return (_parse_day(os.path.basename(doc["inner"])) or _parse_day(doc["archive"])
+            or email_dates.get(doc["archive"] or doc["inner"]))
+
+
 def include_by_date(doc: dict, since) -> bool:
-    """Keep documents whose file or archive name is dated on/after `since` (undated are kept)."""
+    """Keep documents dated on/after `since`. Undated documents are left out
+    unless there is no date limit, so old loose files are never sent by accident."""
     if since is None:
         return True
-    m = _NAME_DATE_RE.search(doc["inner"]) or _NAME_DATE_RE.search(doc["archive"])
-    if not m:
-        return True
-    try:
-        d = datetime(int(m.group(3)), int(m.group(2)), int(m.group(1))).date()
-    except ValueError:
-        return True
-    return d >= since
+    d = doc.get("date")
+    return d is not None and d >= since
+
+
+def pick_balanced(docs: list, limit: int) -> list:
+    """Newest first, taking from each project in turn so none is starved by the cap."""
+    by_project: dict[str, list] = {}
+    for d in sorted(docs, key=lambda x: (x.get("date") or datetime(1900, 1, 1).date()), reverse=True):
+        by_project.setdefault(d["project"], []).append(d)
+    picked, queues = [], list(by_project.values())
+    while queues and len(picked) < limit:
+        for q in list(queues):
+            if q and len(picked) < limit:
+                picked.append(q.pop(0))
+            if not q:
+                queues.remove(q)
+    return picked
 
 
 # ── Claude request building ───────────────────────────────────────────────────
@@ -527,6 +576,10 @@ def main() -> int:
 
     print(f"Scanning {zip_dir} ...")
     docs = collect_documents(zip_dir)
+    email_dates = load_email_dates(os.environ.get("RFI_LOG_PATH", "").strip()
+                                   or os.path.join(zip_dir, "_download_log.json"))
+    for d in docs:
+        d["date"] = doc_date(d, email_dates)
     pending_shas = {m["sha"] for b in state["pending_batches"].values() for m in b.values()}
     new_docs, unknown = [], []
     for d in docs:
@@ -544,7 +597,7 @@ def main() -> int:
         if d["sha"] not in seen:
             seen.add(d["sha"])
             unique.append(d)
-    new_docs = unique[:max_docs]
+    new_docs = pick_balanced(unique, max_docs)
 
     counts = {p: sum(1 for d in new_docs if d["project"] == p) for p in PROJECTS}
     print(f"Documents found: {len(docs)}; new: {len(new_docs)} "
